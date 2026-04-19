@@ -18,7 +18,7 @@
 - Generate training data via local Ollama models.
 - Audit any commit by any agent and write findings to PlausiDen-Audits.
 - Append findings to the IPC bus.
-- Run audits from the [PlausiDen-Audits](https://github.com/redcaptian1917/PlausiDen-Audits)
+- Run audits from the [PlausiDen-Audits](https://github.com/thepictishbeast/PlausiDen-Audits)
   catalog and post results.
 
 ## Allowed only with explicit human authorization

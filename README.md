@@ -2,7 +2,7 @@
 
 > Standing orders, gates, and operational doctrine for every AI agent and
 > human contributing to the PlausiDen ecosystem. This repo is the source of
-> truth for how work is done; [PlausiDen-Audits](https://github.com/redcaptian1917/PlausiDen-Audits)
+> truth for how work is done; [PlausiDen-Audits](https://github.com/thepictishbeast/PlausiDen-Audits)
 > is the catalog of named gates that enforce it.
 
 ## Why this exists
@@ -52,33 +52,33 @@ work, gate every commit on [`gates/`](gates/), annotate every line per
 
 ## Repos this governs
 
-- [LFI / lfi_vsa_core](https://github.com/redcaptian1917/LFI)
-- [PlausiDen-Engine](https://github.com/redcaptian1917/PlausiDen-Engine)
-- [PlausiDen-Browser-Ext](https://github.com/redcaptian1917/PlausiDen-Browser-Ext)
-- [PlausiDen-Sentinel](https://github.com/redcaptian1917/PlausiDen-Sentinel)
-- [PlausiDen-Inject](https://github.com/redcaptian1917/PlausiDen-Inject)
-- [PlausiDen-Firewall](https://github.com/redcaptian1917/PlausiDen-Firewall)
-- [PlausiDen-Purge](https://github.com/redcaptian1917/PlausiDen-Purge)
-- [PlausiDen-Sentinel](https://github.com/redcaptian1917/PlausiDen-Sentinel)
-- [PlausiDen-Shard](https://github.com/redcaptian1917/PlausiDen-Shard)
-- [PlausiDen-Swarm](https://github.com/redcaptian1917/PlausiDen-Swarm)
-- [PlausiDen-Tidy](https://github.com/redcaptian1917/PlausiDen-Tidy)
-- [PlausiDen-AppGuard](https://github.com/redcaptian1917/PlausiDen-AppGuard)
-- [PlausiDen-Atrium](https://github.com/redcaptian1917/PlausiDen-Atrium)
-- [PlausiDen-USB](https://github.com/redcaptian1917/PlausiDen-USB)
-- [PlausiDen-Desktop](https://github.com/redcaptian1917/PlausiDen-Desktop)
-- [PlausiDen-Android](https://github.com/redcaptian1917/PlausiDen-Android)
-- [PlausiDen-OS-for-Mobile](https://github.com/redcaptian1917/PlausiDen-OS-for-Mobile)
-- [PlausiDen-MCP](https://github.com/redcaptian1917/PlausiDen-MCP)
-- [Testing-Framework](https://github.com/redcaptian1917/Testing-Framework)
-- [Vulnerability-Scanner](https://github.com/redcaptian1917/Vulnerability-Scanner)
+- [LFI / lfi_vsa_core](https://github.com/thepictishbeast/LFI)
+- [PlausiDen-Engine](https://github.com/thepictishbeast/PlausiDen-Engine)
+- [PlausiDen-Browser-Ext](https://github.com/thepictishbeast/PlausiDen-Browser-Ext)
+- [PlausiDen-Sentinel](https://github.com/thepictishbeast/PlausiDen-Sentinel)
+- [PlausiDen-Inject](https://github.com/thepictishbeast/PlausiDen-Inject)
+- [PlausiDen-Firewall](https://github.com/thepictishbeast/PlausiDen-Firewall)
+- [PlausiDen-Purge](https://github.com/thepictishbeast/PlausiDen-Purge)
+- [PlausiDen-Sentinel](https://github.com/thepictishbeast/PlausiDen-Sentinel)
+- [PlausiDen-Shard](https://github.com/thepictishbeast/PlausiDen-Shard)
+- [PlausiDen-Swarm](https://github.com/thepictishbeast/PlausiDen-Swarm)
+- [PlausiDen-Tidy](https://github.com/thepictishbeast/PlausiDen-Tidy)
+- [PlausiDen-AppGuard](https://github.com/thepictishbeast/PlausiDen-AppGuard)
+- [PlausiDen-Atrium](https://github.com/thepictishbeast/PlausiDen-Atrium)
+- [PlausiDen-USB](https://github.com/thepictishbeast/PlausiDen-USB)
+- [PlausiDen-Desktop](https://github.com/thepictishbeast/PlausiDen-Desktop)
+- [PlausiDen-Android](https://github.com/thepictishbeast/PlausiDen-Android)
+- [PlausiDen-OS-for-Mobile](https://github.com/thepictishbeast/PlausiDen-OS-for-Mobile)
+- [PlausiDen-MCP](https://github.com/thepictishbeast/PlausiDen-MCP)
+- [Testing-Framework](https://github.com/thepictishbeast/Testing-Framework)
+- [Vulnerability-Scanner](https://github.com/thepictishbeast/Vulnerability-Scanner)
 - And anything else carrying the PlausiDen prefix.
 
 ## Installing doctrine into a new repo
 
 ```bash
 # From within the target repo
-curl -fsSL https://raw.githubusercontent.com/redcaptian1917/PlausiDen-AVP-Doctrine/main/scripts/install-doctrine.sh | bash
+curl -fsSL https://raw.githubusercontent.com/thepictishbeast/PlausiDen-AVP-Doctrine/main/scripts/install-doctrine.sh | bash
 ```
 
 This drops a `CLAUDE.md` referencing the doctrine, a `.github/workflows/avp.yml`

@@ -24,8 +24,8 @@ Open with care.
 ## What's out of scope here
 
 - Concrete project code — those changes go in the relevant PlausiDen repo.
-- Audit checklists — those go in [PlausiDen-Audits](https://github.com/redcaptian1917/PlausiDen-Audits).
-- Test utilities — those go in [Testing-Framework](https://github.com/redcaptian1917/Testing-Framework).
+- Audit checklists — those go in [PlausiDen-Audits](https://github.com/thepictishbeast/PlausiDen-Audits).
+- Test utilities — those go in [Testing-Framework](https://github.com/thepictishbeast/Testing-Framework).
 
 ## Versioning
 

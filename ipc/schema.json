@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/redcaptian1917/PlausiDen-AVP-Doctrine/ipc/schema.json",
+  "$id": "https://github.com/thepictishbeast/PlausiDen-AVP-Doctrine/ipc/schema.json",
   "title": "PlausiDen IPC Message",
   "description": "One line of bus.jsonl. Writers SHOULD validate before append; readers MAY validate and skip malformed lines.",
   "type": "object",

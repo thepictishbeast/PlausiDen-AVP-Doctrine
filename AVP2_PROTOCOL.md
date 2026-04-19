@@ -645,7 +645,7 @@ jobs:
       - name: Integration sweep
         run: |
           for repo in plausiden-engine plausiden-vault plausiden-auth; do
-            if git clone "https://github.com/redcaptian1917/$repo" 2>/dev/null; then
+            if git clone "https://github.com/thepictishbeast/$repo" 2>/dev/null; then
               cd "$repo"
               cargo test --all-features || echo "::warning::$repo integration tests failed"
               cd ..

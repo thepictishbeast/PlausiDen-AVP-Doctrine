@@ -41,7 +41,7 @@
 
 ## Audit gates Claude-0 owns
 
-Per the [PlausiDen-Audits](https://github.com/redcaptian1917/PlausiDen-Audits)
+Per the [PlausiDen-Audits](https://github.com/thepictishbeast/PlausiDen-Audits)
 catalog, Claude-0 is the default owner of:
 
 - `verify-code`, `test`, `concurrency`, `api-contract`,

@@ -7,8 +7,8 @@
 
 set -euo pipefail
 
-DOCTRINE_URL="https://github.com/redcaptian1917/PlausiDen-AVP-Doctrine"
-AUDITS_URL="https://github.com/redcaptian1917/PlausiDen-Audits"
+DOCTRINE_URL="https://github.com/thepictishbeast/PlausiDen-AVP-Doctrine"
+AUDITS_URL="https://github.com/thepictishbeast/PlausiDen-Audits"
 
 write_if_absent() {
     local path="$1" content="$2"
