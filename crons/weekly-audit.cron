@@ -1,0 +1,6 @@
+# PlausiDen weekly audit routine — managed by PlausiDen-AVP-Doctrine
+# Runs the `weekly` routine: supersociety, adversary, improvement,
+# audits-of-audits, threat-model, future-proof.
+# Output: ~/.local/share/plausiden/cron-state/weekly-audit.log
+
+0 6 * * 1 /usr/bin/env bash -lc 'cd /home/user/Development/PlausiDen && for r in PlausiDen-*/; do (cd "$r" && bash /home/user/Development/PlausiDen/PlausiDen-AVP-Doctrine/scripts/run-routine.sh weekly); done >> ~/.local/share/plausiden/cron-state/weekly-audit.log 2>&1'

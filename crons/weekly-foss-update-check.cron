@@ -1,0 +1,6 @@
+# PlausiDen FOSS upstream diff — managed by PlausiDen-AVP-Doctrine
+# Sundays at 04:00 local: walk every vendored FOSS dep, diff against
+# upstream's latest release, file findings to PlausiDen-Audits/audits/foss/.
+# Output: ~/.local/share/plausiden/cron-state/foss-check.log
+
+0 4 * * 0 /usr/bin/env bash -lc 'bash /home/user/Development/PlausiDen/PlausiDen-AVP-Doctrine/scripts/foss-upstream-check.sh >> ~/.local/share/plausiden/cron-state/foss-check.log 2>&1'

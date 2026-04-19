@@ -1,0 +1,5 @@
+# PlausiDen agent heartbeat — managed by PlausiDen-AVP-Doctrine
+# Each on-host agent posts a heartbeat to the IPC bus once per hour.
+# Output: ~/.local/share/plausiden/cron-state/heartbeat.log
+
+0 * * * * /usr/bin/env bash -lc 'bash /home/user/Development/PlausiDen/PlausiDen-AVP-Doctrine/scripts/post-heartbeat.sh >> ~/.local/share/plausiden/cron-state/heartbeat.log 2>&1'

@@ -1,0 +1,6 @@
+# PlausiDen daily audit routine — managed by PlausiDen-AVP-Doctrine
+# Runs the `daily` routine from PlausiDen-Audits across every PlausiDen repo
+# under /home/user/Development/PlausiDen/.
+# Output: ~/.local/share/plausiden/cron-state/daily-audit.log
+
+0 6 * * * /usr/bin/env bash -lc 'cd /home/user/Development/PlausiDen && for r in PlausiDen-*/; do (cd "$r" && bash /home/user/Development/PlausiDen/PlausiDen-AVP-Doctrine/scripts/run-routine.sh daily); done >> ~/.local/share/plausiden/cron-state/daily-audit.log 2>&1'

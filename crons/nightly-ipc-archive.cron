@@ -1,0 +1,6 @@
+# PlausiDen IPC bus archive — managed by PlausiDen-AVP-Doctrine
+# Rolls bus.jsonl entries older than 30 days into bus.archive/<YYYY-MM>.jsonl.
+# Append-only; never deletes.
+# Output: ~/.local/share/plausiden/cron-state/ipc-archive.log
+
+0 3 * * * /usr/bin/env bash -lc 'bash /home/user/Development/PlausiDen/PlausiDen-AVP-Doctrine/scripts/archive-ipc.sh >> ~/.local/share/plausiden/cron-state/ipc-archive.log 2>&1'

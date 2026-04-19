@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/redcaptian1917/PlausiDen-AVP-Doctrine/ipc/schema.json",
+  "title": "PlausiDen IPC Message",
+  "description": "One line of bus.jsonl. Writers SHOULD validate before append; readers MAY validate and skip malformed lines.",
+  "type": "object",
+  "required": ["id", "ts", "from", "to", "kind", "subject"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "UUID v4."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp. Use Z suffix, not +00:00."
+    },
+    "from": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Sender agent id (e.g. claude-0, claude-1, gemini-0, orchestrator)."
+    },
+    "to": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "minItems": 1,
+      "description": "Recipient agent ids, or ['all'] for broadcast, or ['human'] for escalations."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["task", "ack", "finding", "broadcast", "heartbeat", "halt"]
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 3800,
+      "description": "Free text or stringified JSON. Hard cap keeps messages under one 4 KiB atomic-append page. Large payloads use refs.body_path."
+    },
+    "refs": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "integer", "boolean"] },
+      "description": "Typed cross-references. Known keys: pr, issue, commit, audit, original (for acks), body_path (for oversized bodies)."
+    }
+  }
+}

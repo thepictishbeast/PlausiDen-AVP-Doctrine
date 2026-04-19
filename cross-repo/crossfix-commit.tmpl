@@ -1,0 +1,23 @@
+AVP-CROSSFIX from {{SOURCE_REPO}}: {{ONE_LINE_DESCRIPTION}}
+
+# Body
+
+CROSSFIX: {{SOURCE_REPO}} — {{ONE_LINE_REASON}}
+
+## What changed
+{{LIST_OF_FILES_AND_FUNCTIONS}}
+
+## Why this applies here
+{{WHY_THIS_REPO_IS_AFFECTED}}
+
+## Source finding
+- Repo: {{SOURCE_REPO}}
+- Commit: {{SOURCE_COMMIT_SHA}}
+- Audit: {{AUDIT_THAT_FOUND_IT}}
+
+## Verification
+- [ ] Short-loop AVP (Tiers 1-3, 6 passes) green
+- [ ] Sibling test suites green
+- [ ] Integration tests across affected repos green
+
+Co-Authored-By: {{AGENT_NAME}}

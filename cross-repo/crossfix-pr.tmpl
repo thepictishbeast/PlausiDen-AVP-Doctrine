@@ -1,0 +1,32 @@
+## Summary
+
+AVP-CROSSFIX ported from `{{SOURCE_REPO}}` — {{ONE_LINE_DESCRIPTION}}.
+
+This PR mirrors the fix in {{SOURCE_REPO}}#{{SOURCE_PR_NUMBER}} into this
+repo's equivalent surface.
+
+## Why now
+
+{{WHY_THIS_NEEDS_TO_LAND_NOW}}
+
+## What changed
+
+{{LIST_OF_FILES_AND_FUNCTIONS}}
+
+## Test plan
+
+- [ ] Short-loop AVP (Tiers 1-3, 6 passes) clean on this branch.
+- [ ] `cargo test --workspace` (or equivalent) green.
+- [ ] Pre-merge audit routine clean.
+- [ ] Integration test against {{LIST_OF_AFFECTED_SIBLINGS}}.
+
+## Cross-repo trace
+
+| Repo | Commit | Audit |
+|------|--------|-------|
+| {{SOURCE_REPO}} | {{SOURCE_COMMIT}} | {{SOURCE_AUDIT}} |
+| _this repo_ | {{THIS_COMMIT}} | (filed in PlausiDen-Audits) |
+| {{OTHER_AFFECTED}} | _todo or N/A_ | _todo or N/A_ |
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code) under
+[PlausiDen-AVP-Doctrine](https://github.com/redcaptian1917/PlausiDen-AVP-Doctrine).

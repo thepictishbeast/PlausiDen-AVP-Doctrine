@@ -1,0 +1,19 @@
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local secrets — never in this repo
+.env
+.env.*
+!.env.example
+secrets/
+
+# Loop runtime state — agents write PIDs and logs to per-host paths, not here
+loops/runtime/*
+!loops/runtime/.gitkeep
+
+# Cron install state
+crons/installed-by-host/
