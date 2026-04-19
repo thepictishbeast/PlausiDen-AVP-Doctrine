@@ -1,8 +1,13 @@
 # Crons
 
-Cron snippets for scheduled agent routines. **None of these are installed
-automatically.** The human (or an authorized agent) runs `install.sh` after
-reviewing.
+Cron snippets for scheduled agent routines, for hosts where the init system
+is **not** systemd. If you're on systemd (most Linux desktops/servers,
+including the primary PlausiDen workstation), use
+[`../timers/`](../timers/) instead — timers are the native idiom and
+`Persistent=true` handles missed runs during downtime.
+
+**None of these are installed automatically.** The human (or an authorized
+agent) runs `install.sh` after reviewing.
 
 ## Available crons
 

@@ -30,7 +30,8 @@ work, gate every commit on [`gates/`](gates/), annotate every line per
 | [`cross-repo/`](cross-repo/) | How fixes flow between sibling repos (`AVP-CROSSFIX`). |
 | [`ship-decision/`](ship-decision/) | Templates for the ship verdict (always "STILL BROKEN"). |
 | [`prompts/`](prompts/) | Reusable AI agent prompt templates (new-feature, bug-fix, code-review, audit-self). |
-| [`crons/`](crons/) | Cron snippets for scheduled routines — daily/weekly audits, IPC checks, drift sweeps. |
+| [`crons/`](crons/) | Cron snippets for non-systemd hosts. |
+| [`timers/`](timers/) | Systemd system timers (the default on systemd hosts — daily/weekly audits, heartbeat, IPC archive, FOSS drift). |
 | [`loops/`](loops/) | Long-running loop scripts (audit-loop, ipc-poll, sprint-progress) and the loop **registry**. |
 | [`examples/`](examples/) | Concrete examples of doctrine application in real PlausiDen work. |
 | [`scripts/`](scripts/) | Helper scripts: install doctrine into a repo, check repo compliance. |
