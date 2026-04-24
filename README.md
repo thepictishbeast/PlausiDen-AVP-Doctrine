@@ -1,9 +1,17 @@
+<!-- repo-label: meta-doctrine -->
+<!-- repo-class: validation-protocol-and-agent-standing-orders -->
+<!-- repo-consumes: nothing (axiom floor; see PlausiDen-Meta/AXIOM_FLOOR.md) -->
+<!-- repo-consumed-by: every PlausiDen-* repo (advisory grading) + every PlausiDen agent (standing orders) -->
+
 # PlausiDen-AVP-Doctrine
 
-> Standing orders, gates, and operational doctrine for every AI agent and
-> human contributing to the PlausiDen ecosystem. This repo is the source of
-> truth for how work is done; [PlausiDen-Audits](https://github.com/thepictishbeast/PlausiDen-Audits)
-> is the catalog of named gates that enforce it.
+> The validation protocol every PlausiDen-namespace artifact is graded
+> against before release, plus the standing orders for every AI agent and
+> human contributing to the ecosystem.
+>
+> Sister repos: [`PlausiDen-Meta`](https://github.com/thepictishbeast/PlausiDen-Meta)
+> (priority gate + governance), [`PlausiDen-Audits`](https://github.com/thepictishbeast/PlausiDen-Audits)
+> (catalog enforcing this protocol).
 
 ## Why this exists
 
