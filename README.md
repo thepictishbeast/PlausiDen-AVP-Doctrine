@@ -59,29 +59,18 @@ work, gate every commit on [`gates/`](gates/), annotate every line per
 7. **Shipping:** write the `SHIP-DECISION:` annotation listing accepted
    residual risks. The verdict is always "STILL BROKEN."
 
-## Repos this governs
+## What this governs
 
-- [LFI / lfi_vsa_core](https://github.com/thepictishbeast/LFI)
-- [PlausiDen-Engine](https://github.com/thepictishbeast/PlausiDen-Engine)
-- [PlausiDen-Browser-Ext](https://github.com/thepictishbeast/PlausiDen-Browser-Ext)
-- [PlausiDen-Sentinel](https://github.com/thepictishbeast/PlausiDen-Sentinel)
-- [PlausiDen-Inject](https://github.com/thepictishbeast/PlausiDen-Inject)
-- [PlausiDen-Firewall](https://github.com/thepictishbeast/PlausiDen-Firewall)
-- [PlausiDen-Purge](https://github.com/thepictishbeast/PlausiDen-Purge)
-- [PlausiDen-Sentinel](https://github.com/thepictishbeast/PlausiDen-Sentinel)
-- [PlausiDen-Shard](https://github.com/thepictishbeast/PlausiDen-Shard)
-- [PlausiDen-Swarm](https://github.com/thepictishbeast/PlausiDen-Swarm)
-- [PlausiDen-Tidy](https://github.com/thepictishbeast/PlausiDen-Tidy)
-- [PlausiDen-AppGuard](https://github.com/thepictishbeast/PlausiDen-AppGuard)
-- [PlausiDen-Atrium](https://github.com/thepictishbeast/PlausiDen-Atrium)
-- [PlausiDen-USB](https://github.com/thepictishbeast/PlausiDen-USB)
-- [PlausiDen-Desktop](https://github.com/thepictishbeast/PlausiDen-Desktop)
-- [PlausiDen-Android](https://github.com/thepictishbeast/PlausiDen-Android)
-- [PlausiDen-OS-for-Mobile](https://github.com/thepictishbeast/PlausiDen-OS-for-Mobile)
-- [PlausiDen-MCP](https://github.com/thepictishbeast/PlausiDen-MCP)
-- [Testing-Framework](https://github.com/thepictishbeast/Testing-Framework)
-- [Vulnerability-Scanner](https://github.com/thepictishbeast/Vulnerability-Scanner)
-- And anything else carrying the PlausiDen prefix.
+Any project that adopts this doctrine. The doctrine itself enumerates no
+specific consumers — per [`PlausiDen-Meta/SCOPE.md`](https://github.com/thepictishbeast/PlausiDen-Meta/blob/main/SCOPE.md)
+it applies to **any project, in any language, on any platform** that
+declares adoption.
+
+A non-normative ecosystem index (which projects have adopted this doctrine,
+their tier targets, status) lives in
+[`PlausiDen-Meta/REPO_LABEL_REGISTRY.md`](https://github.com/thepictishbeast/PlausiDen-Meta/blob/main/REPO_LABEL_REGISTRY.md).
+That index is informational; this doctrine's design is independent of which
+consumers happen to exist at any given time.
 
 ## Installing doctrine into a new repo
 

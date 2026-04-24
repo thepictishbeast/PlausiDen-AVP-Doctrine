@@ -1,0 +1,29 @@
+# Doctrine + engine changelog for PlausiDen-AVP-Doctrine.
+#
+# Required by PlausiDen-Meta/OPERATING_PRINCIPLES.md §11 (doctrines-are-living).
+# Consumer CI pulls this on every audit run; warns at 30 days behind, fails at
+# 90 days behind.
+#
+# Append-only. Newest entries at the top.
+# Each entry covers either a doctrine version bump (semver: major = removed
+# tenet / added tenet / precedence change; minor = added anti-pattern /
+# vocabulary field / taxonomy entry; patch = wording / examples / typos)
+# or an engine version bump (semver per the engine's own versioning).
+
+[meta]
+repo                = "PlausiDen-AVP-Doctrine"
+last_amendment_date = "2026-04-24T14:00:59Z"
+amendment_count     = 0
+
+# === Entries ===
+# Format:
+#   [[entry]]
+#   id              = "<doctrine-or-engine-version-id>"
+#   kind            = "doctrine" | "engine" | "amendment" | "deprecation"
+#   version_from    = "<semver>"
+#   version_to      = "<semver>"
+#   date            = "<ISO-8601>"
+#   summary         = "<one-line>"
+#   affected_tenets = ["<tenet-id>", ...]   # for doctrine entries
+#   amendment_pr    = "<URL>"               # for amendment entries
+#   notes           = "<optional>"
