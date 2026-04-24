@@ -1,0 +1,101 @@
+# Adversarial Validation Doctrine — machine-readable principles.
+# Mirrors DOCTRINE.md tenets. Audits machine-checks against this file.
+
+[meta]
+doctrine_version = "1.0"
+
+[[principle]]
+id          = "guilty-until-proven-innocent"
+tenet       = 1
+statement   = "Every line of code is presumed broken until adversarial testing proves otherwise."
+enforcement = "audit-rule:no-ship-without-tier-passes"
+rationale   = "Optimism degrades fastest in long-lived correctness-critical systems."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "adversary-always-bothers"
+tenet       = 2
+statement   = "Threat model is a state-actor with full capabilities; 'nobody would bother' is not a valid assessment."
+enforcement = "static-doc-required:THREAT_MODEL.md"
+rationale   = "Most exploited systems were dismissed as too obscure to attack."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "loop-six-tiers-thirty-six-passes"
+tenet       = 3
+statement   = "Code is not fit to ship until Tier 1-6 have been run end-to-end (≥36 passes total)."
+enforcement = "ci-tier-pass-tracking"
+rationale   = "Skipped tiers cluster failure modes; full loop catches cross-tier interactions."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "absorb-not-depend"
+tenet       = 4
+statement   = "FOSS capabilities are vendored, hardened, and brought under the project's AVP loop, not trusted as-is."
+enforcement = "audit-rule:foss-absorbed-annotation-required"
+rationale   = "Supply-chain compromise is the single most-cited recent breach pattern."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "cross-repo-fixes-are-mine"
+tenet       = 5
+statement   = "Sibling-applicable bugs are fixed in the sibling in the same session, tagged AVP-CROSSFIX."
+enforcement = "audit-rule:crossfix-annotation-on-cross-repo-commits"
+rationale   = "Past-self in another repo is an untrusted external contributor."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "annotations-grepable"
+tenet       = 6
+statement   = "All annotations come from a closed taxonomy and are uppercase + colon-prefixed for grep discoverability."
+enforcement = "static-comment-shape"
+rationale   = "Audit machinery depends on grep stability."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "public-functions-carry-bug-assumption"
+tenet       = 7
+statement   = "Every public function has a BUG ASSUMPTION comment; every unsafe block has a SAFETY proof."
+enforcement = "static-comment-required-on-public-fn"
+rationale   = "Surface-area attestation is the cheapest audit."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "ship-verdict-always-still-broken"
+tenet       = 8
+statement   = "SHIP-DECISION annotations list residual risks, mutation score, coverage, and the human who signed."
+enforcement = "static-annotation-shape:SHIP-DECISION"
+rationale   = "Shipping is risk acceptance, not correctness assertion."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "standing-orders-at-session-start"
+tenet       = 9
+statement   = "Every AI agent reads its standing-orders file at session start and on every context compaction."
+enforcement = "agent-prompt-includes-standing-orders-link"
+rationale   = "Context compaction is the most common doctrine-loss event."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "coding-gates-pre-commit"
+tenet       = 10
+statement   = "Per-language gates run before commits land; failures are root-caused, not bypassed."
+enforcement = "git-hook-or-ci-pre-merge"
+rationale   = "Post-merge gate failures cost more than pre-commit ones."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "ai-assists-not-gates"
+tenet       = 11
+statement   = "AI may draft, explain, suggest. AI never autonomously waives a violation, mutates a baseline, runs as a CI gate, or issues a ship verdict."
+enforcement = "ci-no-ai-gate"
+rationale   = "Determinism over plausibility; preserves swappability of AI vendor."
+review_date = "2027-04-24"
+
+[[principle]]
+id          = "recursion-stops-at-axiom-floor"
+tenet       = 12
+statement   = "AVP Tier 0 is the axiom floor; below it, claims are asserted by fiat."
+enforcement = "doctrine-cross-link:PlausiDen-Meta/AXIOM_FLOOR.md"
+rationale   = "Without a floor, every meta-discussion recurses indefinitely and nothing ships."
+review_date = "2027-04-24"

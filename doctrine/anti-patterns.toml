@@ -1,0 +1,55 @@
+# Adversarial Validation Doctrine — anti-patterns.
+# Mirrors DOCTRINE.md anti-pattern section. Each entry: name, statement, why-bad.
+
+[meta]
+doctrine_version = "1.0"
+
+[[anti_pattern]]
+id        = "no-verify-bypass"
+statement = "Using --no-verify, --no-gpg-sign, or equivalent flag to bypass a failing gate."
+why_bad   = "The gate caught a real problem. Bypassing it ships the problem with a paper trail saying you knew."
+
+[[anti_pattern]]
+id        = "allow-without-rationale"
+statement = "#[allow(...)] / eslint-disable / // pylint: disable / equivalent without a comment naming the suppressed rule and the reason."
+why_bad   = "Suppressed warnings rot into silent regressions; future maintainers can't distinguish 'considered and accepted' from 'noise the original author didn't understand'."
+
+[[anti_pattern]]
+id        = "unwrap-in-library"
+statement = "unwrap() / expect() in library code without a SAFETY: justification or a // test-only annotation."
+why_bad   = "Library panics propagate as external bugs; consumers can't recover from a panic in code they don't own."
+
+[[anti_pattern]]
+id        = "vendoring-without-hardening"
+statement = "Absorbing FOSS into a fork without removing unused features, replacing unwraps, annotating unsafe, and adding bounds checks at public-API surfaces."
+why_bad   = "Absorbed code that retains its original incident density inherits all those incidents under your name."
+
+[[anti_pattern]]
+id        = "ship-decision-without-residuals"
+statement = "Writing a SHIP-DECISION annotation that does not enumerate accepted residual risks."
+why_bad   = "Ship verdicts are risk acceptance documents. Without listed residuals, they're aspirational."
+
+[[anti_pattern]]
+id        = "ai-merge-without-human-ratification"
+statement = "Merging AI-generated code without a named human reviewer in the commit trailer or PR approval chain."
+why_bad   = "AI assists; humans ratify. Removes the named-author accountability chain that doctrine relies on."
+
+[[anti_pattern]]
+id        = "ahead-of-trigger-doctrine-work"
+statement = "Building meta-layer / doctrine artifacts before the corresponding trigger has fired in PlausiDen-Meta/PRIORITY.md."
+why_bad   = "Speculative meta-work is the failure mode that turns infrastructure into a beautiful cathedral that competes with object-level consumer work for attention."
+
+[[anti_pattern]]
+id        = "sibling-bug-ignored"
+statement = "Detecting a bug in the current repo, knowing it applies to a sibling, and not applying the fix in the sibling within the same session."
+why_bad   = "Propagation failure; the sibling will hit the same incident later under different conditions and the connection will be lost."
+
+[[anti_pattern]]
+id        = "tests-of-tests-as-substitute"
+statement = "Meta-validation (mutation testing, property tests of tests) used as a substitute for primary tests rather than as a supplement."
+why_bad   = "A mutation-tested test of a wrong invariant is still wrong; meta-validation amplifies, it does not originate."
+
+[[anti_pattern]]
+id        = "doctrine-without-citation"
+statement = "Proposing a doctrine amendment without citing a concrete incident, near-miss, external authority change, or cross-repo inconsistency."
+why_bad   = "Speculative amendments accumulate as cathedral; the meta-layer must remain net-negative work per OPERATING_PRINCIPLES §1."

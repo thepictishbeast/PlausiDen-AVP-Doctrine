@@ -1,0 +1,16 @@
+[meta]
+repo                = "PlausiDen-AVP-Doctrine"
+doctrine_version    = "1.0"
+engine_version      = "specification-only"
+
+[tiers]
+# AVP-Doctrine is the doctrine itself; it grades others. Per
+# PlausiDen-Meta/AXIOM_FLOOR.md, AVP Tier 0 is the axiom floor — this repo
+# bottoms out the recursion at "exists and is internally consistent."
+tier_0_axiom_floor          = "passing"
+doctrine_conformance        = "passing"
+generality                  = "passing"
+harvest_readiness           = "partial"
+
+[graduation]
+next_gate = "first-three-doctrine-amendments-via-citation-process"

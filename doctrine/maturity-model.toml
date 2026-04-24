@@ -1,0 +1,61 @@
+# Adversarial Validation Doctrine — per-consumer maturity model.
+# A consumer repo declares its current tier in integrations/avp.toml.
+
+[meta]
+doctrine_version = "1.0"
+
+[[tier]]
+id        = "tier-0-axiom-floor"
+ordinal   = 0
+name      = "Axiom floor"
+criterion = "Repo exists; CLAUDE.md installed at root; standing orders linked or vendored; doctrine_version declared in integrations/avp.toml."
+
+[[tier]]
+id        = "tier-1-existence-proof"
+ordinal   = 1
+name      = "Existence proof"
+criterion = "Tier 1 passes (skeleton audit, null/zero/empty sweep, boundary sweep, error-path completeness, type tightening, dependency audit) green in CI."
+
+[[tier]]
+id        = "tier-2-failure-resilience"
+ordinal   = 2
+name      = "Failure resilience"
+criterion = "Tier 2 passes (fault injection on every I/O, concurrency chaos, resource exhaustion, graceful degradation, data integrity under crash, combined chaos) green in CI."
+
+[[tier]]
+id        = "tier-3-adversarial-security"
+ordinal   = 3
+name      = "Adversarial security"
+criterion = "Tier 3 passes (deserialization hardening, injection sweep, auth/authz, crypto audit, side-channel analysis, supply-chain sim, network security, data-at-rest, data-in-transit, opsec, fuzzing campaign) green in CI."
+
+[[tier]]
+id        = "tier-4-ux-ui-adversarial"
+ordinal   = 4
+name      = "UX/UI adversarial"
+criterion = "Tier 4 passes (first-contact install ≤5min, error experience, WCAG 2.1 AA, performance UX 100ms response or loading state, adversarial user, design consistency on a 4/8 px grid) green for any user-facing surface."
+
+[[tier]]
+id        = "tier-5-integration-ecosystem"
+ordinal   = 5
+name      = "Integration & ecosystem"
+criterion = "Tier 5 passes (cross-repo integration tests with version skew, contribute fixes back into siblings, run full sibling test suite) green; CROSSFIX commits land in siblings as needed."
+
+[[tier]]
+id        = "tier-6-meta-validation"
+ordinal   = 6
+name      = "Meta-validation"
+criterion = "Tier 6 passes (mutation testing with <5% survival, property-based testing ≥10k cases with no-panic property, formal verification where feasible) green in CI."
+
+[graduation_rules]
+# A repo declares "passing" at tier N when every numbered pass at that tier
+# is either green in CI or has a filed exception per
+# PlausiDen-Meta/EXCEPTIONS.md.
+#
+# A repo at tier N is implicitly at all lower tiers (cumulative).
+#
+# Skipping tiers (e.g. claiming tier 3 without tier 1) is a doctrine
+# violation; tiers are completed in order.
+upgrade_blocker_rule = "all-lower-tiers-passing"
+exception_per_pass_allowed = true
+exception_count_warning_threshold = 3
+exception_count_error_threshold = 6

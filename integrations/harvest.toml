@@ -1,0 +1,9 @@
+[meta]
+project              = "PlausiDen-AVP-Doctrine"
+upstream_candidates  = false
+review_cadence       = "monthly"
+
+# AVP-Doctrine is itself a harvest *target* (sister doctrine repos propose
+# annotation taxonomy additions, gate templates, etc., to it) more than a
+# harvest *source*. Candidates may emerge as standing-orders patterns
+# stabilize across multiple agent role files; until then this file is empty.
