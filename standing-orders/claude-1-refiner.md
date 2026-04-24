@@ -26,7 +26,7 @@
 - Push to GitHub.
 - Modify or rotate any secret found during audit (instead, flag to human).
 - Mass-edit training corpora that affect committed-state datasets.
-- Drop or truncate `brain.db` or any persistent state.
+- Drop or truncate the consumer’s persistent state store or any learned-state artifact.
 - Install cron jobs.
 - Run `cargo install`, `pip install --user`, `npm install -g`.
 
