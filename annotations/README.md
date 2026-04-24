@@ -19,7 +19,7 @@ instance.
 | `DEBUG-REMOVE:` | Line to be stripped before release. Caught in `debug-logs` audit. |
 | `SHIP-DECISION:` | Date + accepted residual risks + developer name. Required on every ship verdict. |
 | `CROSSFIX:` | Source repo + description of ported fix. Required on every AVP-CROSSFIX commit. |
-| `LEAK-JUSTIFIED:` | Designed-exception site for synthetic-TLD leak filter. Used in `data-leak` audit. |
+| `LEAK-JUSTIFIED:` | A value that **must** cross a confidentiality boundary by design (build artifact, public API surface, log line, manifest, error string). Annotation explains why the leak is intentional and what risks were accepted. Caught by `data-leak` audit; `LEAK-JUSTIFIED:` lines pass the audit, unannotated leaks fail. |
 
 ## Usage
 
@@ -35,6 +35,8 @@ instance.
 ```typescript
 // UX-DEBT: keyboard focus on modal close button has not been screen-reader tested.
 // REGRESSION-GUARD: previously the date picker rendered locale 'en' regardless of system locale (issue #142).
+// LEAK-JUSTIFIED: this allowlist is inlined into the bundle — it must be readable by users for the
+//   transparency requirement; threat is "attacker learns our allowlist," accepted because allowlist is public.
 ```
 
 ## Discipline

@@ -515,6 +515,7 @@ Every annotation is machine-grepable for CI and audit:
 // DEBUG-REMOVE: <line to be stripped before release>
 // SHIP-DECISION: <date> <accepted residual risks> <developer>
 // CROSSFIX: <source-repo> <description of ported fix>
+// LEAK-JUSTIFIED: <why this value must cross a confidentiality boundary; threats accepted>
 ```
 
 ---
