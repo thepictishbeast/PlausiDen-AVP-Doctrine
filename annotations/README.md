@@ -20,6 +20,7 @@ instance.
 | `SHIP-DECISION:` | Date + accepted residual risks + developer name. Required on every ship verdict. |
 | `CROSSFIX:` | Source repo + description of ported fix. Required on every AVP-CROSSFIX commit. |
 | `LEAK-JUSTIFIED:` | A value that **must** cross a confidentiality boundary by design (build artifact, public API surface, log line, manifest, error string). Annotation explains why the leak is intentional and what risks were accepted. Caught by `data-leak` audit; `LEAK-JUSTIFIED:` lines pass the audit, unannotated leaks fail. |
+| `COUPLING-EXEMPT:` | A backend route or frontend href that does NOT need a counterpart on the other side. Required on every line the [`backend-frontend` audit](https://github.com/thepictishbeast/PlausiDen-Audits/tree/main/audits/backend-frontend) would otherwise flag (e.g., `/healthz`, `/sitemap.xml`, `/robots.txt`). The reason MUST be specific — "internal", "external", "magic" are not reasons. |
 
 ## Usage
 
@@ -30,6 +31,8 @@ instance.
 // AVP-PASS-13: 2026-04-19 — added depth limit (5) to prevent JSON nesting bomb.
 // SHIP-DECISION: 2026-04-30 — accepted: rate limit not yet enforced on health endpoint.
 //   Residual risk: low (read-only, no state change). Owner: tian.
+.route("/healthz", get(handlers::healthz)) // COUPLING-EXEMPT: internal liveness probe, never advertised
+.route("/sitemap.xml", get(handlers::sitemap_xml)) // COUPLING-EXEMPT: served to crawlers, not clicked from UI
 ```
 
 ```typescript
