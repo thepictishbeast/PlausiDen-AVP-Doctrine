@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shell:
+    name: shellcheck
+    runs-on: [self-hosted, linux, x64, plausiden]
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck all .sh files
+        run: |
+          shopt -s globstar nullglob
+          fail=0
+          for f in **/*.sh; do
+            shellcheck -S warning "$f" || fail=1
+          done
+          exit $fail
