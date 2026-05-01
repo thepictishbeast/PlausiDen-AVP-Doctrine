@@ -17,6 +17,7 @@
 #![allow(clippy::redundant_pub_crate)]
 
 mod cli;
+mod install;
 
 use std::process::ExitCode;
 

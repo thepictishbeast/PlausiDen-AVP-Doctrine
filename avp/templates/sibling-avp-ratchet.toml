@@ -1,0 +1,29 @@
+# avp-ratchet.toml — temporary, signed, time-boxed gate overrides.
+#
+# Each entry has a hard expiry. After expires_after, the gate re-engages
+# and CI fails — the ratchet is a forcing function, not a permanent
+# bypass.
+#
+# Required fields per entry:
+#   gate          — kebab-case GateId (run `avp gate list` for the set)
+#   reason        — non-empty justification
+#   signed_by     — accountable human's email
+#   opened        — ISO-8601 date the override was filed
+#   expires_after — ISO-8601 date past which CI fails
+#
+# Optional fields:
+#   crate         — Cargo crate name to scope the override to
+#   file          — Rust regex over repo-relative paths
+#
+# `avp ratchet validate avp-ratchet.toml` checks this file's schema.
+# `avp ratchet preflight` warns on near-expiry and fails on expired.
+
+# Example (commented out — uncomment + edit to add a real override):
+#
+# [[overrides]]
+# gate          = "bug-assumption"
+# crate         = "my-legacy-crate"
+# reason        = "BUG ASSUMPTION sweep tracked in #42; lands by 2026-Q3."
+# signed_by     = "you@example.com"
+# opened        = "2026-04-30"
+# expires_after = "2026-09-30"

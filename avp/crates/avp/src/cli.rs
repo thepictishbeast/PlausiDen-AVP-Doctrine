@@ -289,7 +289,7 @@ impl Cli {
             Cmd::Check(args) => run_check(&args),
             Cmd::Ratchet(args) => run_ratchet(args),
             Cmd::Drift(_) => stub("avp drift"),
-            Cmd::Install(_) => stub("avp install"),
+            Cmd::Install(args) => run_install(&args),
             Cmd::Gate(args) => run_gate(&args),
             Cmd::Explain(args) => run_explain(&args),
             Cmd::Intent(_) => stub("avp intent"),
@@ -320,6 +320,14 @@ fn stub(name: &str) -> Result<ExitCode> {
         "avp: {name} is not implemented yet (v0.1.0-dev). See task tracker in PlausiDen-AVP-Doctrine."
     );
     Ok(ExitCode::from(64))
+}
+
+#[instrument(level = "debug", skip_all)]
+fn run_install(args: &InstallArgs) -> Result<ExitCode> {
+    // Pin to this build's version; `avp install` writes a workflow that
+    // matches the binary the user is currently invoking.
+    let version_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
+    crate::install::run(&args.repo, &version_tag, args.dry_run, args.force)
 }
 
 #[instrument(level = "debug", skip_all)]
