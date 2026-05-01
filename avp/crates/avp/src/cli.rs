@@ -214,6 +214,9 @@ pub(crate) struct DriftArgs {
     /// File a drift issue per offender via `gh issue create`.
     #[arg(long)]
     pub open_issues: bool,
+    /// Emit a markdown report instead of a colored terminal table.
+    #[arg(long)]
+    pub markdown: bool,
 }
 
 /// `avp install` args.
@@ -288,7 +291,7 @@ impl Cli {
         match self.cmd {
             Cmd::Check(args) => run_check(&args),
             Cmd::Ratchet(args) => run_ratchet(args),
-            Cmd::Drift(_) => stub("avp drift"),
+            Cmd::Drift(args) => run_drift(&args),
             Cmd::Install(args) => run_install(&args),
             Cmd::Gate(args) => run_gate(&args),
             Cmd::Explain(args) => run_explain(&args),
@@ -320,6 +323,12 @@ fn stub(name: &str) -> Result<ExitCode> {
         "avp: {name} is not implemented yet (v0.1.0-dev). See task tracker in PlausiDen-AVP-Doctrine."
     );
     Ok(ExitCode::from(64))
+}
+
+#[instrument(level = "debug", skip_all)]
+fn run_drift(args: &DriftArgs) -> Result<ExitCode> {
+    let version_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
+    crate::drift::run(&args.root, &version_tag, args.open_issues, args.markdown)
 }
 
 #[instrument(level = "debug", skip_all)]
