@@ -25,6 +25,17 @@ test = false
 doctest = false
 doc = false
 
+# Release-pipeline helper: prints `<blake3-hash>  <basename>` for a file.
+# Used by .github/workflows/release.yml to produce the .blake3 manifest
+# alongside the avp binary, sidestepping the need for a standalone
+# `b3sum` binary or `python3-blake3` on the self-hosted runner.
+[[bin]]
+name = "b3sum-shim"
+path = "src/bin/b3sum-shim.rs"
+test = false
+doctest = false
+doc = false
+
 [lints]
 workspace = true
 

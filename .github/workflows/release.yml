@@ -87,6 +87,16 @@ jobs:
           ./avp/target/${TARGET}/release/avp --version
           ./avp/target/${TARGET}/release/avp gate list
 
+      - name: Build b3sum-shim (release helper)
+        working-directory: avp
+        shell: bash
+        run: |
+          cargo build \
+            --release \
+            --target "${TARGET}" \
+            --locked \
+            --bin b3sum-shim
+
       - name: Compute blake3
         shell: bash
         run: |
@@ -95,16 +105,11 @@ jobs:
           asset="$out_dir/avp-${TARGET}"
           cp "avp/target/${TARGET}/release/avp" "$asset"
           chmod +x "$asset"
-          if command -v b3sum >/dev/null 2>&1; then
-            (cd "$out_dir" && b3sum "avp-${TARGET}") > "$out_dir/avp-${TARGET}.blake3"
-          else
-            python3 - <<PY > "$out_dir/avp-${TARGET}.blake3"
-          import blake3, sys
-          data = open("$out_dir/avp-${TARGET}", "rb").read()
-          h = blake3.blake3(data).hexdigest()
-          sys.stdout.write(f"{h}  avp-${TARGET}\n")
-          PY
-          fi
+          # Use our in-workspace b3sum-shim — sidesteps `b3sum` /
+          # `python3-blake3` dependency on the self-hosted runner.
+          (cd "$out_dir" \
+             && "../avp/target/${TARGET}/release/b3sum-shim" "avp-${TARGET}" \
+             ) > "$out_dir/avp-${TARGET}.blake3"
           ls -la "$out_dir"
           cat "$out_dir/avp-${TARGET}.blake3"
 
