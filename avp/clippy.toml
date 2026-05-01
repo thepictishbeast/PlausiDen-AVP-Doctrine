@@ -1,0 +1,19 @@
+# SECURITY: clippy thresholds chosen tighter than defaults.
+# AVP doctrine deny pedantic + nursery via [workspace.lints]; this file
+# tunes the per-lint configurables.
+
+avoid-breaking-exported-api = true
+cognitive-complexity-threshold = 20
+type-complexity-threshold = 200
+too-many-arguments-threshold = 6
+too-many-lines-threshold = 120
+trivial-copy-size-limit = 64
+disallowed-methods = []
+disallowed-types = []
+disallowed-macros = [
+    { path = "std::println",    reason = "use tracing::info!/debug! in library code (avp/gates/rust.md)" },
+    { path = "std::eprintln",   reason = "use tracing::error!/warn! in library code (avp/gates/rust.md)" },
+    { path = "std::dbg",        reason = "DEBUG-REMOVE; never ship dbg!()" },
+    { path = "std::todo",       reason = "do not ship todo!()" },
+    { path = "std::unimplemented", reason = "do not ship unimplemented!()" },
+]

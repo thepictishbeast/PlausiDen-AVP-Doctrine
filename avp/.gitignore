@@ -1,0 +1,15 @@
+target/
+**/*.rs.bk
+**/*.profraw
+**/*.profdata
+.cargo/registry/
+*.swp
+*.swo
+.DS_Store
+
+# coverage
+coverage/
+lcov.info
+
+# insta snapshots: tracked. Don't ignore.
+# !**/*.snap

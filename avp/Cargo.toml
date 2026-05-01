@@ -1,0 +1,107 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/avp-core",
+    "crates/avp",
+]
+
+[workspace.package]
+version       = "0.1.0-dev"
+edition       = "2024"
+rust-version  = "1.92"
+license       = "AGPL-3.0-or-later"
+repository    = "https://github.com/thepictishbeast/PlausiDen-AVP-Doctrine"
+authors       = ["PlausiDen <william@plausiden.com>"]
+keywords      = ["avp", "plausiden", "linter", "supersociety", "ci"]
+categories    = ["development-tools::cargo-plugins", "command-line-utilities"]
+
+[workspace.dependencies]
+# in-workspace
+avp-core            = { path = "crates/avp-core", version = "0.1.0-dev" }
+
+# CLI / UX
+clap                = { version = "4.5", features = ["derive", "env", "wrap_help", "string", "unicode"] }
+clap_complete       = "4.5"
+anstream            = "0.6"
+anstyle             = "1.0"
+indicatif           = "0.17"
+comfy-table         = "7"
+
+# data
+serde               = { version = "1", features = ["derive"] }
+serde_json          = "1"
+toml                = { version = "0.8", features = ["preserve_order"] }
+toml_edit           = "0.22"
+time                = { version = "0.3", features = ["serde", "macros", "formatting", "parsing", "local-offset"] }
+regex               = "1.10"
+url                 = { version = "2.5", features = ["serde"] }
+
+# error / log
+thiserror           = "2"
+anyhow              = "1"
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
+
+# parallel + filesystem
+rayon               = "1.10"
+ignore              = "0.4"
+walkdir             = "2"
+
+# rust AST
+syn                 = { version = "2", features = ["full", "extra-traits", "visit", "parsing"] }
+proc-macro2         = "1"
+
+# integrity
+blake3              = { version = "1.5", features = ["serde"] }
+
+# convenience
+once_cell           = "1.19"
+
+# dev
+proptest            = "1.5"
+assert_cmd          = "2"
+predicates          = "3"
+insta               = { version = "1.40", features = ["yaml", "json"] }
+tempfile            = "3"
+test-log            = { version = "0.2", features = ["trace"] }
+
+[workspace.lints.rust]
+unsafe_code        = "forbid"
+missing_docs       = "warn"
+unreachable_pub    = "warn"
+unused_must_use    = "deny"
+non_ascii_idents   = "deny"
+
+[workspace.lints.clippy]
+pedantic           = { level = "warn", priority = -1 }
+nursery            = { level = "warn", priority = -1 }
+cargo              = { level = "warn", priority = -1 }
+all                = { level = "deny", priority = -1 }
+# project allows
+multiple_crate_versions = "allow"   # transitive deps; revisit per-version with cargo-deny
+module_name_repetitions = "allow"   # avp-core::ratchet::Ratchet is fine
+missing_errors_doc      = "allow"   # thiserror enums are self-documenting
+missing_panics_doc      = "allow"   # we forbid panics in lib code anyway
+doc_markdown            = "allow"   # too aggressive on prose; revisit later
+
+[profile.release]
+lto              = "fat"
+codegen-units    = 1
+strip            = "symbols"
+opt-level        = 3
+debug            = false
+overflow-checks  = true   # SECURITY: keep overflow checks even in release; supersociety
+panic            = "unwind"
+
+[profile.release-fast]
+inherits         = "release"
+lto              = "thin"
+codegen-units    = 16
+
+[profile.dev]
+opt-level        = 0
+debug            = true
+overflow-checks  = true
+
+[profile.dev.package."*"]
+opt-level        = 2          # speed up tests of deps

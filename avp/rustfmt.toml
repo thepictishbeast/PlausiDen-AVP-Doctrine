@@ -1,0 +1,29 @@
+edition = "2024"
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Auto"
+use_small_heuristics = "Default"
+reorder_imports = true
+reorder_modules = true
+remove_nested_parens = true
+match_block_trailing_comma = false
+fn_params_layout = "Tall"
+
+# Many useful options here are nightly-only — kept here as breadcrumbs so
+# we know what to enable when we move to a nightly toolchain for tooling.
+# Do NOT uncomment on stable; rustfmt warns and ignores them.
+# group_imports         = "StdExternalCrate"
+# imports_granularity   = "Crate"
+# format_strings        = true
+# format_macro_matchers = true
+# normalize_comments    = true
+# wrap_comments         = true
+# trailing_comma        = "Vertical"
+# trailing_semicolon    = true
+# brace_style           = "SameLineWhere"
+# control_brace_style   = "AlwaysSameLine"
+# empty_item_single_line= true
+# struct_lit_single_line= true
+# fn_single_line        = false
+# where_single_line     = false

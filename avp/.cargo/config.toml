@@ -1,0 +1,17 @@
+[build]
+# SECURITY: warnings are errors. AVP doctrine §8.
+rustflags = ["-D", "warnings"]
+
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[alias]
+# Convenience aliases — `cargo avp-check` runs the doctrine gate locally.
+avp-check    = "run --release --bin avp -- check rust"
+avp-fmt      = "fmt --all -- --check"
+avp-clippy   = "clippy --workspace --all-targets --all-features -- -D warnings"
+avp-test     = "test --workspace --all-features"
+avp-doc      = "doc --workspace --no-deps"
+avp-deny     = "deny check advisories sources bans licenses"
+avp-mutants  = "mutants --workspace"
+avp-cov      = "llvm-cov --workspace --all-features --html"
