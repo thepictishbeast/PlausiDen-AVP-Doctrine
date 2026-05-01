@@ -21,7 +21,8 @@ use anyhow::{Context as _, Result};
 use avp_core::IntentFile;
 use clap::{Args, Parser, Subcommand};
 use conductor_core::{
-    MockDriver, RecoveryPolicy, Session, Supervisor, SupervisorEvent, SupervisorEventKind,
+    Host, HostsConfig, MockDriver, RecoveryPolicy, Session, Supervisor, SupervisorEvent,
+    SupervisorEventKind,
 };
 use tracing::info;
 
@@ -33,6 +34,13 @@ struct Cli {
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
     verbose: u8,
 
+    /// Path to the hosts config TOML. Default:
+    /// `$XDG_CONFIG_HOME/conductor/hosts.toml`, falling back to
+    /// `~/.config/conductor/hosts.toml`. Missing files load as
+    /// local-only (no error).
+    #[arg(long, global = true)]
+    host_config: Option<PathBuf>,
+
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -41,9 +49,18 @@ struct Cli {
 enum Cmd {
     /// Print version + capability info.
     Info,
+    /// List declared hosts + show how each given agent-id would route.
+    Hosts(HostsArgs),
     /// Step the supervisor through a list of intents using the mock driver.
     /// Useful for exercising the FSM without a real claude subprocess.
     DryRun(DryRunArgs),
+}
+
+#[derive(Debug, Args)]
+struct HostsArgs {
+    /// Repeatable: agent ids to test against the routing rules.
+    #[arg(long = "resolve")]
+    resolve: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -105,6 +122,14 @@ fn init_tracing(verbose: u8) {
 }
 
 async fn dispatch(cli: Cli) -> Result<ExitCode> {
+    let cfg_path = cli
+        .host_config
+        .clone()
+        .unwrap_or_else(default_host_config_path);
+    let hosts = HostsConfig::load(&cfg_path)
+        .with_context(|| format!("load host config {}", cfg_path.display()))?;
+    info!(hosts = ?hosts.host_names(), default = %hosts.default, "host config loaded");
+
     match cli.cmd {
         Cmd::Info => {
             println!(
@@ -113,13 +138,54 @@ async fn dispatch(cli: Cli) -> Result<ExitCode> {
                 conductor_core::VERSION,
             );
             println!("driver: mock (real claude-cli driver lands v0.2)");
+            println!(
+                "hosts: {}  (default: {})",
+                hosts.host_names().join(", "),
+                hosts.default,
+            );
             Ok(ExitCode::SUCCESS)
         }
-        Cmd::DryRun(args) => run_dry_run(args).await,
+        Cmd::Hosts(args) => run_hosts(&hosts, &args),
+        Cmd::DryRun(args) => run_dry_run(args, &hosts).await,
     }
 }
 
-async fn run_dry_run(args: DryRunArgs) -> Result<ExitCode> {
+fn default_host_config_path() -> PathBuf {
+    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    let base = xdg.unwrap_or_else(|| {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .map_or_else(|| PathBuf::from("."), |h| h.join(".config"))
+    });
+    base.join("conductor").join("hosts.toml")
+}
+
+// AVP-PASS-2026-05-01: dispatch arms share the Result<ExitCode> shape;
+// keeping run_hosts wrapped lets future error paths slot in without
+// changing the signature.
+#[allow(clippy::unnecessary_wraps)]
+fn run_hosts(hosts: &HostsConfig, args: &HostsArgs) -> Result<ExitCode> {
+    println!("hosts ({} declared):", hosts.host_names().len());
+    for name in hosts.host_names() {
+        let label = match hosts.hosts.get(name) {
+            Some(Host::Local) => "local".to_owned(),
+            Some(Host::Ssh(t)) => format!("ssh:{t}"),
+            _ => "unknown".to_owned(),
+        };
+        let star = if name == hosts.default { " *" } else { "" };
+        println!("  {name:>16}{star}  {label}");
+    }
+    if !args.resolve.is_empty() {
+        println!("\nrouting:");
+        for id in &args.resolve {
+            let host = hosts.resolve(id);
+            println!("  {id:>32}  →  {}", host.label());
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn run_dry_run(args: DryRunArgs, hosts: &HostsConfig) -> Result<ExitCode> {
     if args.intents.is_empty() {
         return Err(anyhow::anyhow!("--intent <path> required (repeatable)"));
     }
@@ -133,7 +199,10 @@ async fn run_dry_run(args: DryRunArgs) -> Result<ExitCode> {
             .worktree
             .clone()
             .unwrap_or_else(|| parent_or_dot(path).to_path_buf());
-        let session = Session::new(intent, worktree);
+        // Resolve which Host this intent routes to (Local / Ssh).
+        let host = hosts.resolve(intent.agent_id.as_str()).clone();
+        info!(agent = %intent.agent_id, host = %host.label(), "routed");
+        let session = Session::new_on(intent, worktree, host);
         sup.enroll(session).await;
     }
 
