@@ -257,6 +257,9 @@ pub(crate) struct ExplainArgs {
 /// `avp intent` args.
 #[derive(Debug, Args)]
 pub(crate) struct IntentArgs {
+    /// Repo root (default: cwd).
+    #[arg(long, global = true)]
+    pub repo: Option<PathBuf>,
     #[command(subcommand)]
     pub cmd: IntentCmd,
 }
@@ -264,14 +267,51 @@ pub(crate) struct IntentArgs {
 /// `avp intent` subcommands.
 #[derive(Debug, Subcommand)]
 pub(crate) enum IntentCmd {
-    /// Claim a worktree by writing `.avp-intent.toml`. Stub.
-    Claim,
-    /// Compute file-touch overlap across all open intents. Stub.
+    /// Claim a worktree by writing `.avp-intent.toml`.
+    Claim(IntentClaimArgs),
+    /// Compute file-touch overlap across every active intent.
     Overlap,
-    /// Print a topologically sorted merge order. Stub.
+    /// Print a topologically sorted merge order.
     MergeOrder,
-    /// Verify branch's actual diff against its declared intent. Stub.
-    Verify,
+    /// Verify branch's actual diff against its declared intent.
+    Verify {
+        /// Base ref to diff against.
+        #[arg(long, default_value = "origin/main")]
+        base: String,
+    },
+}
+
+/// `avp intent claim` args — see cross-repo/multi-instance.md for the
+/// schema each field maps to.
+#[derive(Debug, Args)]
+pub(crate) struct IntentClaimArgs {
+    /// Stable identifier for this work unit.
+    #[arg(long)]
+    pub agent_id: String,
+    /// Git branch this intent governs.
+    #[arg(long)]
+    pub branch: String,
+    /// One-sentence goal.
+    #[arg(long)]
+    pub goal: String,
+    /// Runnable command that returns 0 iff the goal is achieved.
+    #[arg(long)]
+    pub success_test: String,
+    /// Repeatable: declared file scope (paths or globs).
+    #[arg(long = "files", value_name = "PATH-OR-GLOB")]
+    pub declared_files: Vec<String>,
+    /// Repeatable: agent ids whose overlap is intentionally allowed.
+    #[arg(long = "allow-overlap-with")]
+    pub allows_overlap_with: Vec<String>,
+    /// Optional GH PR reference (e.g. `org/repo#42`).
+    #[arg(long)]
+    pub expected_pr: Option<String>,
+    /// Optional auto-archive date (YYYY-MM-DD).
+    #[arg(long)]
+    pub expires_after: Option<String>,
+    /// Overwrite an existing `.avp-intent.toml`.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// `avp completions` args.
@@ -295,7 +335,7 @@ impl Cli {
             Cmd::Install(args) => run_install(&args),
             Cmd::Gate(args) => run_gate(&args),
             Cmd::Explain(args) => run_explain(&args),
-            Cmd::Intent(_) => stub("avp intent"),
+            Cmd::Intent(args) => run_intent(args),
             Cmd::Completions(args) => run_completions(&args),
         }
     }
@@ -323,6 +363,31 @@ fn stub(name: &str) -> Result<ExitCode> {
         "avp: {name} is not implemented yet (v0.1.0-dev). See task tracker in PlausiDen-AVP-Doctrine."
     );
     Ok(ExitCode::from(64))
+}
+
+#[instrument(level = "debug", skip_all)]
+fn run_intent(args: IntentArgs) -> Result<ExitCode> {
+    let repo = args
+        .repo
+        .ok_or(())
+        .or_else(|()| std::env::current_dir().context("read current directory"))?;
+    match args.cmd {
+        IntentCmd::Claim(c) => crate::intent::claim(&crate::intent::ClaimRequest {
+            repo,
+            agent_id: c.agent_id,
+            branch: c.branch,
+            goal: c.goal,
+            success_test: c.success_test,
+            declared_files: c.declared_files,
+            allows_overlap_with: c.allows_overlap_with,
+            expected_pr: c.expected_pr,
+            expires_after: c.expires_after,
+            force: c.force,
+        }),
+        IntentCmd::Overlap => crate::intent::overlap(&repo),
+        IntentCmd::MergeOrder => crate::intent::merge_order(&repo),
+        IntentCmd::Verify { base } => crate::intent::verify(&repo, &base),
+    }
 }
 
 #[instrument(level = "debug", skip_all)]

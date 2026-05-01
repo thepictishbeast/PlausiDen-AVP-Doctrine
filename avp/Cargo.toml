@@ -48,6 +48,7 @@ tracing-subscriber  = { version = "0.3", features = ["env-filter", "fmt", "ansi"
 rayon               = "1.10"
 ignore              = "0.4"
 walkdir             = "2"
+globset             = "0.4"
 
 # rust AST
 syn                 = { version = "2", features = ["full", "extra-traits", "visit", "parsing"] }

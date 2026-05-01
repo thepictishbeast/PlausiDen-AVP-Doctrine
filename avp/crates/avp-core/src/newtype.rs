@@ -191,6 +191,15 @@ pub enum NewtypeError {
     /// Path tries to traverse upward.
     #[error("path contains parent traversal `..`: {0:?}")]
     PathParentTraversal(PathBuf),
+    /// Empty agent id.
+    #[error("agent_id must be non-empty")]
+    AgentIdEmpty,
+    /// Agent id over the 128-char cap.
+    #[error("agent_id too long (>128 chars): {0:?}")]
+    AgentIdTooLong(String),
+    /// Agent id has whitespace or non-ASCII-graphic chars.
+    #[error("agent_id has invalid char (must be ASCII-graphic, no whitespace): {0:?}")]
+    AgentIdShape(String),
 }
 
 #[cfg(test)]

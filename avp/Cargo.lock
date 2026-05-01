@@ -143,6 +143,7 @@ dependencies = [
 name = "avp-core"
 version = "0.1.0-dev"
 dependencies = [
+ "globset",
  "insta",
  "once_cell",
  "proptest",

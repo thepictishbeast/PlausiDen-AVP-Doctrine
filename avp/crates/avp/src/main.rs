@@ -19,6 +19,7 @@
 mod cli;
 mod drift;
 mod install;
+mod intent;
 
 use std::process::ExitCode;
 
