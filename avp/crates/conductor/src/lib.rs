@@ -14,3 +14,4 @@
 
 pub mod claude_event;
 pub mod driver_local;
+pub mod driver_ssh;
