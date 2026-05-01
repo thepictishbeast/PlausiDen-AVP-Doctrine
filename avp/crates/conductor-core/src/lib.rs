@@ -39,6 +39,7 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+pub mod config;
 pub mod driver;
 pub mod event;
 pub mod host;
@@ -46,6 +47,7 @@ pub mod policy;
 pub mod session;
 pub mod supervisor;
 
+pub use config::{CompiledRule, ConfigError, HostsConfig};
 pub use driver::{ClaudeDriver, DriverError, DriverEvent, MockDriver, SessionHandle};
 pub use event::{SupervisorEvent, SupervisorEventKind};
 pub use host::{Host, HostError, SshTarget};

@@ -24,6 +24,7 @@ toml        = { workspace = true }
 time        = { workspace = true }
 thiserror   = { workspace = true }
 tracing     = { workspace = true }
+globset     = { workspace = true }
 
 # async
 tokio       = { workspace = true }

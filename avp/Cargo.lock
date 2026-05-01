@@ -380,6 +380,7 @@ dependencies = [
  "async-trait",
  "avp-core",
  "futures",
+ "globset",
  "proptest",
  "serde",
  "serde_json",
