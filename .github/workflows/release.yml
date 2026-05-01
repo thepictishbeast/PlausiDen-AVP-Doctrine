@@ -35,6 +35,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # SECURITY: TMPDIR is set at the job level so every shell-based
+      # step picks it up. The directory must exist *before* any step
+      # runs `mktemp` — including dtolnay/rust-toolchain's installer.
+      # If we defer this to after toolchain setup, the rustup install
+      # fails with "mktemp: failed to create directory" (run 25217736666).
+      - name: Pre-create TMPDIR
+        shell: bash
+        run: mkdir -p "$TMPDIR"
+
       - name: Read tag
         id: meta
         shell: bash
@@ -53,10 +62,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: avp
-
-      - name: Pre-build TMPDIR
-        shell: bash
-        run: mkdir -p "$TMPDIR"
 
       - name: Build (release, static musl)
         working-directory: avp
