@@ -1,0 +1,99 @@
+name: avp (self-host)
+
+# Self-host: the doctrine repo runs its own composite action against
+# itself. New gates land here first; this workflow is the canonical
+# "did we break our own gate" tripwire.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily — catches doctrine drift even on quiet days, and ratchet
+    # expiries trigger error annotations on the next run.
+    - cron: '17 6 * * *'
+
+concurrency:
+  group: avp-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  workspace-build-and-test:
+    # Until v0.1.0 is tagged + released, we build from source and run
+    # the workspace's own checks. Once v0.1.0 ships, this job is
+    # superseded by the binary-shim job below.
+    name: avp workspace (source build)
+    runs-on: [self-hosted, linux, x64, plausiden]
+    timeout-minutes: 30
+    env:
+      RUSTFLAGS: -D warnings
+      TMPDIR: /home/runner/avp-build-tmp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: avp
+
+      - name: Pre-build TMPDIR
+        shell: bash
+        run: mkdir -p "$TMPDIR"
+
+      - name: cargo fmt --check
+        working-directory: avp
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        working-directory: avp
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: cargo test
+        working-directory: avp
+        run: cargo test --workspace --all-features
+
+      - name: cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: avp/Cargo.toml
+          command: check advisories sources bans licenses
+
+      - name: avp check rust (self-dogfood)
+        working-directory: avp
+        run: |
+          cargo run --release --bin avp -- \
+            check rust --root "${{ github.workspace }}"
+
+  ratchet-preflight:
+    name: ratchet preflight
+    runs-on: [self-hosted, linux, x64, plausiden]
+    timeout-minutes: 5
+    env:
+      TMPDIR: /home/runner/avp-build-tmp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: avp
+
+      - name: Pre-build TMPDIR
+        shell: bash
+        run: mkdir -p "$TMPDIR"
+
+      - name: avp ratchet preflight
+        working-directory: avp
+        run: |
+          cargo run --release --bin avp -- \
+            ratchet preflight \
+            "${{ github.workspace }}/avp-ratchet.toml" \
+            --warn-window-days 14

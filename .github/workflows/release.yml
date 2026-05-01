@@ -1,0 +1,132 @@
+name: Release
+
+# Triggered by signed tag pushes only. Builds the static-musl `avp`
+# binary, computes its blake3 hash, and uploads both as GitHub Release
+# assets. Sibling repos consume `avp-<target>` + `avp-<target>.blake3`
+# via the avp-rust-gate composite action's install-avp.sh.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: write    # needed to create the Release + upload assets
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build static-musl avp
+    runs-on: [self-hosted, linux, x64, plausiden]
+    timeout-minutes: 60
+    env:
+      TARGET: x86_64-unknown-linux-musl
+      RUSTFLAGS: "-C target-feature=+crt-static -D warnings"
+      TMPDIR: /home/runner/avp-build-tmp
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      asset_bin: avp-${{ env.TARGET }}
+      asset_hash: avp-${{ env.TARGET }}.blake3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read tag
+        id: meta
+        shell: bash
+        run: |
+          tag="${GITHUB_REF##*/}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Building $tag for $TARGET"
+
+      - name: Set up Rust toolchain (musl)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+          components: rustfmt, clippy
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: avp
+
+      - name: Pre-build TMPDIR
+        shell: bash
+        run: mkdir -p "$TMPDIR"
+
+      - name: Build (release, static musl)
+        working-directory: avp
+        shell: bash
+        run: |
+          cargo build \
+            --release \
+            --target "${TARGET}" \
+            --locked \
+            --bin avp
+
+      - name: Verify binary runs
+        shell: bash
+        run: |
+          ./avp/target/${TARGET}/release/avp --version
+          ./avp/target/${TARGET}/release/avp gate list
+
+      - name: Compute blake3
+        shell: bash
+        run: |
+          out_dir=release-assets
+          mkdir -p "$out_dir"
+          asset="$out_dir/avp-${TARGET}"
+          cp "avp/target/${TARGET}/release/avp" "$asset"
+          chmod +x "$asset"
+          if command -v b3sum >/dev/null 2>&1; then
+            (cd "$out_dir" && b3sum "avp-${TARGET}") > "$out_dir/avp-${TARGET}.blake3"
+          else
+            python3 - <<PY > "$out_dir/avp-${TARGET}.blake3"
+          import blake3, sys
+          data = open("$out_dir/avp-${TARGET}", "rb").read()
+          h = blake3.blake3(data).hexdigest()
+          sys.stdout.write(f"{h}  avp-${TARGET}\n")
+          PY
+          fi
+          ls -la "$out_dir"
+          cat "$out_dir/avp-${TARGET}.blake3"
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: avp-${{ env.TARGET }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: publish GitHub Release
+    needs: build
+    runs-on: [self-hosted, linux, x64, plausiden]
+    timeout-minutes: 15
+    env:
+      TARGET: x86_64-unknown-linux-musl
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: avp-${{ env.TARGET }}
+          path: release-assets
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: ${{ needs.build.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/avp-${{ env.TARGET }}
+            release-assets/avp-${{ env.TARGET }}.blake3

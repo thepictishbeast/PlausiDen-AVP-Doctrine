@@ -1,0 +1,57 @@
+name: AVP Rust Gate
+description: |
+  Downloads the pinned `avp` binary from the doctrine repo's GitHub
+  release, verifies its blake3 hash, then runs `avp check rust` against
+  the consumer repo. Single `uses:` line replaces every sibling's
+  copy-pasted ci.yml + security.yml + composition.yml drift.
+
+  See https://github.com/thepictishbeast/PlausiDen-AVP-Doctrine/blob/main/.github/actions/avp-rust-gate/README.md
+
+inputs:
+  version:
+    description: avp tag to download (e.g. v0.1.0). Must match an existing GH Release.
+    required: true
+  strictness:
+    description: 'doctrine | minimal — clippy strictness passed through to `avp check rust`.'
+    required: false
+    default: doctrine
+  ratchet:
+    description: Path to avp-ratchet.toml (relative to repo root).
+    required: false
+    default: avp-ratchet.toml
+  test-density-min:
+    description: Minimum aggregate (tests / public_fns) ratio.
+    required: false
+    default: "4.0"
+  format:
+    description: 'auto | github-actions | human | json — output format.'
+    required: false
+    default: auto
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve action paths
+      id: paths
+      shell: bash
+      run: |
+        echo "scripts=${{ github.action_path }}" >> "$GITHUB_OUTPUT"
+        echo "binary=${{ runner.temp }}/avp" >> "$GITHUB_OUTPUT"
+
+    - name: Install avp binary (download + verify blake3)
+      shell: bash
+      env:
+        AVP_VERSION: ${{ inputs.version }}
+        AVP_BIN: ${{ steps.paths.outputs.binary }}
+      run: bash "${{ steps.paths.outputs.scripts }}/install-avp.sh"
+
+    - name: avp check rust
+      shell: bash
+      env:
+        AVP_BIN: ${{ steps.paths.outputs.binary }}
+      run: |
+        "$AVP_BIN" check rust \
+          --strictness "${{ inputs.strictness }}" \
+          --ratchet "${{ inputs.ratchet }}" \
+          --test-density-min "${{ inputs.test-density-min }}" \
+          --format "${{ inputs.format }}"
