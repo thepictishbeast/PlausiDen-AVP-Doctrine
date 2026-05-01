@@ -31,9 +31,14 @@ jobs:
       # on this Kali-based runner (run 25219965448).
       TMPDIR: ${{ runner.temp }}/avp-build-tmp
     outputs:
+      # SECURITY: at the job level, `outputs:` only supports
+      # `${{ steps.X.outputs.Y }}` style expressions — `env.TARGET`
+      # silently fails workflow validation (runs 25220037922 / 221861 /
+      # 334996 all 0s "workflow file issue"). Hardcode the asset names
+      # since TARGET is a single fixed value here.
       tag: ${{ steps.meta.outputs.tag }}
-      asset_bin: avp-${{ env.TARGET }}
-      asset_hash: avp-${{ env.TARGET }}.blake3
+      asset_bin: avp-x86_64-unknown-linux-musl
+      asset_hash: avp-x86_64-unknown-linux-musl.blake3
 
     steps:
       - uses: actions/checkout@v4
