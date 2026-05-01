@@ -44,7 +44,7 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
 };
 
 use async_trait::async_trait;
@@ -88,8 +88,10 @@ struct LocalSession {
     worktree: PathBuf,
     /// System prompt (pinned at start, unchanged on resume).
     system_prompt: String,
-    /// Claude-side session id, captured from `system.init`.
-    claude_session_id: Option<String>,
+    /// Claude-side session id, captured from `system.init`. Behind an
+    /// Arc<StdMutex> so the spawned reader task can write to it
+    /// independent of the LocalSession's owning lock.
+    claude_session_id: Arc<StdMutex<Option<String>>>,
     /// Background tasks (reader, exit watcher). Kept so we can abort
     /// them on drop/kill.
     tasks: Vec<JoinHandle<()>>,
@@ -116,6 +118,21 @@ impl LocalClaudeDriver {
             claude_bin: claude_bin.into(),
             sessions: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Read the captured Claude-side session id for a session, if any.
+    /// Returns `None` until the subprocess emits its `system.init`
+    /// event. Used by tests + the supervisor to verify resume continuity.
+    pub async fn captured_session_id(&self, handle: &SessionHandle) -> Option<String> {
+        let session_arc = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(&handle.id).cloned()?
+        };
+        let s = session_arc.lock().await;
+        s.claude_session_id
+            .lock()
+            .expect("claude_session_id lock poisoned")
+            .clone()
     }
 
     /// Build the argument vector for a fresh launch of a session.
@@ -155,6 +172,7 @@ impl LocalClaudeDriver {
             .map_err(|e| DriverError::Spawn(format!("{}: {e}", self.claude_bin.display())))?;
 
         let (tx, rx) = mpsc::unbounded_channel::<DriverEvent>();
+        let claude_session_id = Arc::new(StdMutex::new(None::<String>));
 
         // Reader: stdout NDJSON → parsed events.
         let stdout = child
@@ -165,7 +183,8 @@ impl LocalClaudeDriver {
             .stderr
             .take()
             .ok_or_else(|| DriverError::Io("missing child stderr".into()))?;
-        let reader_task = tokio::spawn(stream_stdout(stdout, tx.clone()));
+        let reader_task =
+            tokio::spawn(stream_stdout(stdout, tx.clone(), claude_session_id.clone()));
         let stderr_task = tokio::spawn(stream_stderr(stderr, tx.clone()));
 
         Ok(LocalSession {
@@ -174,7 +193,7 @@ impl LocalClaudeDriver {
             tx,
             worktree: worktree.to_path_buf(),
             system_prompt,
-            claude_session_id: None,
+            claude_session_id,
             tasks: vec![reader_task, stderr_task],
         })
     }
@@ -225,10 +244,11 @@ impl LocalClaudeDriver {
 async fn stream_stdout(
     stdout: tokio::process::ChildStdout,
     tx: mpsc::UnboundedSender<DriverEvent>,
+    claude_session_id: Arc<StdMutex<Option<String>>>,
 ) {
     let mut lines = BufReader::new(stdout).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-        emit_for_line(&line, &tx);
+        emit_for_line(&line, &tx, &claude_session_id);
     }
     debug!("stdout reader ended");
 }
@@ -248,7 +268,11 @@ async fn stream_stderr(
     debug!("stderr reader ended");
 }
 
-fn emit_for_line(raw: &str, tx: &mpsc::UnboundedSender<DriverEvent>) {
+fn emit_for_line(
+    raw: &str,
+    tx: &mpsc::UnboundedSender<DriverEvent>,
+    claude_session_id: &Arc<StdMutex<Option<String>>>,
+) {
     let parsed = parse_line(raw);
     let Some(event) = parsed else {
         // Unparseable line — surface as a log so users see what claude
@@ -268,10 +292,19 @@ fn emit_for_line(raw: &str, tx: &mpsc::UnboundedSender<DriverEvent>) {
             };
             let _ = tx.send(de);
         }
-        // SessionId capture is deferred — for now we rely on the
-        // `--resume` flow being driven from outside (next slice
-        // captures the claude session id at the driver level).
-        Mapped::SessionId(_) | Mapped::Skip => {}
+        Mapped::SessionId(id) => {
+            // Capture the Claude-side session id so resume() can pass
+            // it as `--resume <id>`. We only capture the *first* one
+            // we see — the system.init event's id is authoritative.
+            let mut g = claude_session_id
+                .lock()
+                .expect("claude_session_id lock poisoned");
+            if g.is_none() {
+                tracing::debug!(claude_session_id = %id, "captured session id");
+                *g = Some(id);
+            }
+        }
+        Mapped::Skip => {}
     }
 }
 
@@ -328,7 +361,8 @@ impl ClaudeDriver for LocalClaudeDriver {
                 .cloned()
                 .ok_or_else(|| DriverError::UnknownSession(handle.id.clone()))?
         };
-        // Tear down old child + tasks.
+        // Tear down old child + tasks. Read the captured Claude session
+        // id (if any) — passed to spawn_session for `--resume <id>`.
         let (worktree, system_prompt, resume_id) = {
             let mut s = session_arc.lock().await;
             if let Some(child) = s.child.as_mut() {
@@ -337,11 +371,12 @@ impl ClaudeDriver for LocalClaudeDriver {
             for h in s.tasks.drain(..) {
                 h.abort();
             }
-            (
-                s.worktree.clone(),
-                s.system_prompt.clone(),
-                s.claude_session_id.clone(),
-            )
+            let captured_id = s
+                .claude_session_id
+                .lock()
+                .expect("claude_session_id lock poisoned")
+                .clone();
+            (s.worktree.clone(), s.system_prompt.clone(), captured_id)
         };
         // Re-spawn with `--resume <id>` if we captured the session id;
         // otherwise fall back to a fresh launch with same prompt.

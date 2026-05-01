@@ -144,3 +144,22 @@ async fn invalid_args_exit_2_fails() {
         "expected Failed, got {events:?}"
     );
 }
+
+#[tokio::test]
+async fn captures_claude_session_id_from_init() {
+    // The happy fixture emits `{"type":"system","subtype":"init",
+    // "session_id":"sess-happy"}` as its first line. After the session
+    // terminates the driver should have captured that id so a future
+    // resume() will pass it via `--resume`.
+    let d = driver();
+    let cwd = std::env::temp_dir();
+    let h = d
+        .start(&sid("capture"), &cwd, "FIXTURE=happy")
+        .await
+        .unwrap();
+    drain_until_terminal(&d, &h).await;
+    assert_eq!(
+        d.captured_session_id(&h).await.as_deref(),
+        Some("sess-happy")
+    );
+}

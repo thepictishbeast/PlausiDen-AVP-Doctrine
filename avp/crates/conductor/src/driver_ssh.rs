@@ -48,7 +48,12 @@
 
 #![allow(dead_code)]
 
-use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    process::Stdio,
+    sync::{Arc, Mutex as StdMutex},
+};
 
 use async_trait::async_trait;
 use conductor_core::{
@@ -95,7 +100,10 @@ struct SshSession {
     /// System prompt (pinned at start).
     system_prompt: String,
     /// Claude-side session id (captured from system.init).
-    claude_session_id: Option<String>,
+    /// Captured Claude-side session id (from system.init). Wrapped so
+    /// the spawned reader task can write it without holding the
+    /// session's tokio Mutex.
+    claude_session_id: Arc<StdMutex<Option<String>>>,
     /// Background tasks to abort on kill / resume.
     tasks: Vec<JoinHandle<()>>,
 }
@@ -127,6 +135,21 @@ impl SshClaudeDriver {
     pub fn with_local_ssh(mut self, path: impl Into<PathBuf>) -> Self {
         self.local_ssh_bin = path.into();
         self
+    }
+
+    /// Read the captured Claude-side session id for a session, if any.
+    /// Returns `None` until the remote subprocess emits a `system.init`
+    /// event over the SSH stream.
+    pub async fn captured_session_id(&self, handle: &SessionHandle) -> Option<String> {
+        let session_arc = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(&handle.id).cloned()?
+        };
+        let s = session_arc.lock().await;
+        s.claude_session_id
+            .lock()
+            .expect("claude_session_id lock poisoned")
+            .clone()
     }
 
     /// Build the argv we'll pass to the local `ssh` executable. This
@@ -244,6 +267,7 @@ impl SshClaudeDriver {
             .map_err(|e| DriverError::Spawn(format!("ssh: {e}")))?;
 
         let (tx, rx) = mpsc::unbounded_channel::<DriverEvent>();
+        let claude_session_id = Arc::new(StdMutex::new(None::<String>));
         let stdout = child
             .stdout
             .take()
@@ -252,7 +276,8 @@ impl SshClaudeDriver {
             .stderr
             .take()
             .ok_or_else(|| DriverError::Io("missing ssh stderr".into()))?;
-        let reader_task = tokio::spawn(stream_stdout(stdout, tx.clone()));
+        let reader_task =
+            tokio::spawn(stream_stdout(stdout, tx.clone(), claude_session_id.clone()));
         let stderr_task = tokio::spawn(stream_stderr(stderr, tx.clone()));
 
         Ok(SshSession {
@@ -260,7 +285,7 @@ impl SshClaudeDriver {
             rx,
             tx,
             system_prompt,
-            claude_session_id: None,
+            claude_session_id,
             tasks: vec![reader_task, stderr_task],
         })
     }
@@ -376,10 +401,11 @@ fn shell_quote(s: &str) -> String {
 async fn stream_stdout(
     stdout: tokio::process::ChildStdout,
     tx: mpsc::UnboundedSender<DriverEvent>,
+    claude_session_id: Arc<StdMutex<Option<String>>>,
 ) {
     let mut lines = BufReader::new(stdout).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-        emit_for_line(&line, &tx);
+        emit_for_line(&line, &tx, &claude_session_id);
     }
     debug!("ssh stdout reader ended");
 }
@@ -397,7 +423,11 @@ async fn stream_stderr(
     debug!("ssh stderr reader ended");
 }
 
-fn emit_for_line(raw: &str, tx: &mpsc::UnboundedSender<DriverEvent>) {
+fn emit_for_line(
+    raw: &str,
+    tx: &mpsc::UnboundedSender<DriverEvent>,
+    claude_session_id: &Arc<StdMutex<Option<String>>>,
+) {
     let parsed = parse_line(raw);
     let Some(event) = parsed else {
         if !raw.trim().is_empty() {
@@ -414,7 +444,16 @@ fn emit_for_line(raw: &str, tx: &mpsc::UnboundedSender<DriverEvent>) {
         Mapped::DriverEvent(MappedDriverEvent::Paused { reason }) => {
             let _ = tx.send(DriverEvent::Paused { reason });
         }
-        Mapped::SessionId(_) | Mapped::Skip => {}
+        Mapped::SessionId(id) => {
+            let mut g = claude_session_id
+                .lock()
+                .expect("claude_session_id lock poisoned");
+            if g.is_none() {
+                tracing::debug!(claude_session_id = %id, "ssh: captured session id");
+                *g = Some(id);
+            }
+        }
+        Mapped::Skip => {}
     }
 }
 
@@ -478,7 +517,12 @@ impl ClaudeDriver for SshClaudeDriver {
             for h in s.tasks.drain(..) {
                 h.abort();
             }
-            (s.system_prompt.clone(), s.claude_session_id.clone())
+            let captured_id = s
+                .claude_session_id
+                .lock()
+                .expect("claude_session_id lock poisoned")
+                .clone();
+            (s.system_prompt.clone(), captured_id)
         };
         let new_session = self.spawn_session(system_prompt, resume_id.as_deref())?;
         {
