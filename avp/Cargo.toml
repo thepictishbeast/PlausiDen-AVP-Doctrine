@@ -4,6 +4,8 @@ members = [
     "crates/avp-core",
     "crates/avp-rust",
     "crates/avp",
+    "crates/conductor-core",
+    "crates/conductor",
 ]
 
 [workspace.package]
@@ -20,6 +22,7 @@ categories    = ["development-tools::cargo-plugins", "command-line-utilities"]
 # in-workspace
 avp-core            = { path = "crates/avp-core", version = "0.1.0-dev" }
 avp-rust            = { path = "crates/avp-rust", version = "0.1.0-dev" }
+conductor-core      = { path = "crates/conductor-core", version = "0.1.0-dev" }
 
 # CLI / UX
 clap                = { version = "4.5", features = ["derive", "env", "wrap_help", "string", "unicode"] }
@@ -56,6 +59,11 @@ proc-macro2         = { version = "1", features = ["span-locations"] }
 
 # integrity
 blake3              = { version = "1.5", features = ["serde"] }
+
+# async (used by conductor)
+tokio               = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "io-util", "sync", "signal", "fs"] }
+async-trait         = "0.1"
+futures             = "0.3"
 
 # convenience
 once_cell           = "1.19"

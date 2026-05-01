@@ -1,0 +1,47 @@
+[package]
+name         = "conductor"
+description  = "Long-running supervisor for parallel Claude Code sessions across PlausiDen worktrees."
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+repository   = { workspace = true }
+authors      = { workspace = true }
+keywords     = { workspace = true }
+categories   = { workspace = true }
+readme       = "../../README.md"
+
+[[bin]]
+name = "conductor"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+avp-core           = { workspace = true }
+conductor-core     = { workspace = true }
+
+clap               = { workspace = true }
+anstream           = { workspace = true }
+anstyle            = { workspace = true }
+indicatif          = { workspace = true }
+comfy-table        = { workspace = true }
+
+thiserror          = { workspace = true }
+anyhow             = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+toml               = { workspace = true }
+
+tokio              = { workspace = true }
+async-trait        = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+tempfile   = { workspace = true }
+test-log   = { workspace = true }
