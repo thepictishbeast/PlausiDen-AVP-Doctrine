@@ -26,7 +26,10 @@ jobs:
     env:
       TARGET: x86_64-unknown-linux-musl
       RUSTFLAGS: "-C target-feature=+crt-static -D warnings"
-      TMPDIR: /home/runner/avp-build-tmp
+      # SECURITY: ${{ runner.temp }} is the only path GitHub guarantees
+      # is writable on the self-hosted runner. /home/runner is read-only
+      # on this Kali-based runner (run 25219965448).
+      TMPDIR: ${{ runner.temp }}/avp-build-tmp
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
       asset_bin: avp-${{ env.TARGET }}

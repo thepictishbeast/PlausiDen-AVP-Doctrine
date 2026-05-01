@@ -31,7 +31,8 @@ jobs:
     timeout-minutes: 30
     env:
       RUSTFLAGS: -D warnings
-      TMPDIR: /home/runner/avp-build-tmp
+      # See release.yml for why this isn't /home/runner/...
+      TMPDIR: ${{ runner.temp }}/avp-build-tmp
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +77,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, plausiden]
     timeout-minutes: 5
     env:
-      TMPDIR: /home/runner/avp-build-tmp
+      TMPDIR: ${{ runner.temp }}/avp-build-tmp
     steps:
       - uses: actions/checkout@v4
 
