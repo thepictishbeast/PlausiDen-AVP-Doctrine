@@ -17,14 +17,18 @@ use std::{
     sync::Arc,
 };
 
+use std::collections::HashMap;
+use std::time::Duration;
+
 use anyhow::{Context as _, Result};
 use avp_core::IntentFile;
 use clap::{Args, Parser, Subcommand};
+use conductor::{driver_local::LocalClaudeDriver, driver_ssh::SshClaudeDriver};
 use conductor_core::{
-    Host, HostsConfig, MockDriver, RecoveryPolicy, Session, Supervisor, SupervisorEvent,
-    SupervisorEventKind,
+    ClaudeDriver, Host, HostsConfig, MockDriver, RecoveryPolicy, Session, SshTarget, Supervisor,
+    SupervisorEvent, SupervisorEventKind,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 /// Top-level CLI.
 #[derive(Debug, Parser)]
@@ -54,6 +58,36 @@ enum Cmd {
     /// Step the supervisor through a list of intents using the mock driver.
     /// Useful for exercising the FSM without a real claude subprocess.
     DryRun(DryRunArgs),
+    /// Drive real claude-cli sessions across hosts. One supervisor per
+    /// host group; each group runs concurrently. Use --host-config to
+    /// route specific intents to specific hosts.
+    Run(RunArgs),
+}
+
+#[derive(Debug, Args)]
+struct RunArgs {
+    /// Repeatable: path to a `.avp-intent.toml` to enroll.
+    #[arg(long = "intent")]
+    intents: Vec<PathBuf>,
+    /// Override worktree path; defaults to `<intent-parent>` for local
+    /// sessions and the host's `remote_workdir` for SSH sessions.
+    #[arg(long)]
+    worktree: Option<PathBuf>,
+    /// Path to the `claude` binary on the *local* machine. Default:
+    /// `claude` (resolved via PATH).
+    #[arg(long, default_value = "claude")]
+    claude_bin: PathBuf,
+    /// Path to the `claude` binary on every *remote* SSH host. Default:
+    /// `claude`. Override per-host once we have a per-host config knob.
+    #[arg(long, default_value = "claude")]
+    remote_claude_bin: String,
+    /// Poll interval (ms) — how often each supervisor steps and drains
+    /// events.
+    #[arg(long, default_value_t = 250)]
+    poll_ms: u64,
+    /// Hard cap on supervisor steps before bailing out (per group).
+    #[arg(long, default_value_t = 10_000)]
+    max_steps: u32,
 }
 
 #[derive(Debug, Args)]
@@ -147,6 +181,7 @@ async fn dispatch(cli: Cli) -> Result<ExitCode> {
         }
         Cmd::Hosts(args) => run_hosts(&hosts, &args),
         Cmd::DryRun(args) => run_dry_run(args, &hosts).await,
+        Cmd::Run(args) => run_real(args, &hosts).await,
     }
 }
 
@@ -233,6 +268,154 @@ async fn run_dry_run(args: DryRunArgs, hosts: &HostsConfig) -> Result<ExitCode> 
 
 fn parent_or_dot(p: &Path) -> &Path {
     p.parent().unwrap_or_else(|| Path::new("."))
+}
+
+// ─── conductor run ───────────────────────────────────────────────────────
+
+/// Real-driver execution. Group intents by host name, instantiate the
+/// right driver per group (Local / Ssh), spawn one supervisor per
+/// group, and drive them concurrently until every session terminates.
+async fn run_real(args: RunArgs, hosts: &HostsConfig) -> Result<ExitCode> {
+    if args.intents.is_empty() {
+        return Err(anyhow::anyhow!("--intent <path> required (repeatable)"));
+    }
+
+    // Group intents by resolved host name.
+    let mut groups: HashMap<String, Vec<Session>> = HashMap::new();
+    for path in &args.intents {
+        let intent = IntentFile::load(path).with_context(|| format!("load {}", path.display()))?;
+        let host = hosts.resolve(intent.agent_id.as_str()).clone();
+        let host_name = hosts.resolve_name(intent.agent_id.as_str()).to_owned();
+        let worktree = args.worktree.clone().unwrap_or_else(|| match &host {
+            Host::Ssh(t) => t.remote_workdir.clone(),
+            // Local + any future variant: use the intent's parent dir.
+            _ => parent_or_dot(path).to_path_buf(),
+        });
+        info!(agent = %intent.agent_id, host = %host_name, "routed");
+        let session = Session::new_on(intent, worktree, host);
+        groups.entry(host_name).or_default().push(session);
+    }
+
+    // Spawn one supervisor per group, all concurrent. Each task owns its
+    // supervisor + driver so lifetimes are clean.
+    let mut joinset: tokio::task::JoinSet<Result<u32>> = tokio::task::JoinSet::new();
+    let poll = Duration::from_millis(args.poll_ms);
+    let max_steps = args.max_steps;
+
+    for (host_name, sessions) in groups {
+        let host =
+            hosts.hosts.get(&host_name).cloned().with_context(|| {
+                format!("config bug: resolved host_name {host_name:?} not in map")
+            })?;
+        match host {
+            Host::Local => {
+                let driver = Arc::new(LocalClaudeDriver::with_bin(args.claude_bin.clone()));
+                let sup = Arc::new(Supervisor::with_policy(driver, RecoveryPolicy::default()));
+                for s in sessions {
+                    sup.enroll(s).await;
+                }
+                let label = host_name.clone();
+                joinset.spawn(async move { drive_group(label, sup, poll, max_steps).await });
+            }
+            Host::Ssh(target) => {
+                let driver = Arc::new(make_ssh_driver(target, &args.remote_claude_bin));
+                let sup = Arc::new(Supervisor::with_policy(driver, RecoveryPolicy::default()));
+                for s in sessions {
+                    sup.enroll(s).await;
+                }
+                let label = host_name.clone();
+                joinset.spawn(async move { drive_group(label, sup, poll, max_steps).await });
+            }
+            // Future Host variants (Docker / k8s / cloud-run) get
+            // explicit handling here; until then we refuse rather
+            // than silently routing to local.
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "host kind not yet supported by `conductor run`: {host_name}"
+                ));
+            }
+        }
+    }
+
+    let mut group_count = 0u32;
+    let mut total_sessions = 0u32;
+    while let Some(joined) = joinset.join_next().await {
+        let count = match joined {
+            Ok(Ok(n)) => n,
+            Ok(Err(err)) => {
+                warn!(?err, "supervisor task errored");
+                0
+            }
+            Err(err) => {
+                warn!(?err, "supervisor task panicked");
+                0
+            }
+        };
+        group_count = group_count.saturating_add(1);
+        total_sessions = total_sessions.saturating_add(count);
+    }
+
+    println!("conductor: {group_count} group(s), {total_sessions} session(s) terminal");
+    Ok(ExitCode::SUCCESS)
+}
+
+fn make_ssh_driver(target: SshTarget, remote_claude_bin: &str) -> SshClaudeDriver {
+    SshClaudeDriver::new(target).with_remote_claude(remote_claude_bin.to_owned())
+}
+
+/// Drive one group's supervisor until every session is terminal (or we
+/// hit the step cap). Streams events to stdout per session.
+async fn drive_group<D>(
+    label: String,
+    sup: Arc<Supervisor<D>>,
+    poll: Duration,
+    max_steps: u32,
+) -> Result<u32>
+where
+    D: ClaudeDriver + 'static,
+{
+    let mut steps = 0u32;
+    while !sup.is_done().await {
+        if steps >= max_steps {
+            return Err(anyhow::anyhow!(
+                "[{label}] supervisor not done after {max_steps} steps"
+            ));
+        }
+        if let Err(err) = sup.step().await {
+            warn!(group = %label, ?err, "step failed");
+        }
+        for event in sup.drain_events().await {
+            print_real_event(&label, &event);
+        }
+        steps = steps.saturating_add(1);
+        tokio::time::sleep(poll).await;
+    }
+    // Drain any final events emitted on the last step.
+    for event in sup.drain_events().await {
+        print_real_event(&label, &event);
+    }
+    let snap = sup.snapshot().await;
+    Ok(u32::try_from(snap.len()).unwrap_or(u32::MAX))
+}
+
+fn print_real_event(label: &str, e: &SupervisorEvent) {
+    let session = e
+        .session
+        .as_ref()
+        .map_or_else(|| "-".to_owned(), ToString::to_string);
+    let kind = match &e.kind {
+        SupervisorEventKind::Queued => "queued".to_owned(),
+        SupervisorEventKind::Started => "started".to_owned(),
+        SupervisorEventKind::Log { line } => format!("log: {line}"),
+        SupervisorEventKind::Paused { reason } => format!("paused: {}", reason.label()),
+        SupervisorEventKind::ResumeScheduled { delay_seconds } => {
+            format!("resume-after-{delay_seconds}s")
+        }
+        SupervisorEventKind::Escalated { reason } => format!("escalated: {reason}"),
+        SupervisorEventKind::Terminal { outcome } => format!("terminal: {outcome:?}"),
+        _ => "?".to_owned(),
+    };
+    println!("[{label:>14}] {session:>30}  {kind}");
 }
 
 fn print_events(events: &[SupervisorEvent]) {

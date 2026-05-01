@@ -116,22 +116,28 @@ impl HostsConfig {
         raw.validate_and_compile()
     }
 
+    /// Resolve a session's agent id to the **name** of its target host.
+    /// Useful when the caller wants to group sessions by host (e.g. the
+    /// `conductor run` CLI builds one Supervisor per host group, keyed
+    /// by name for stable map lookups).
+    #[must_use]
+    pub fn resolve_name(&self, agent_id: &str) -> &str {
+        for rule in &self.rules {
+            if rule.matcher.is_match(agent_id) && self.hosts.contains_key(&rule.host_name) {
+                return &rule.host_name;
+            }
+        }
+        &self.default
+    }
+
     /// Resolve a session's agent id to its target [`Host`]. The first
     /// matching rule wins; falls back to the default host.
     #[must_use]
     pub fn resolve(&self, agent_id: &str) -> &Host {
-        for rule in &self.rules {
-            // Rule references an unknown host should be impossible
-            // (validation rejects it); the get() fallback is paranoia.
-            if rule.matcher.is_match(agent_id)
-                && let Some(h) = self.hosts.get(&rule.host_name)
-            {
-                return h;
-            }
-        }
+        let name = self.resolve_name(agent_id);
         self.hosts
-            .get(&self.default)
-            .expect("default host present (validated)")
+            .get(name)
+            .expect("resolve_name returns a known name (validated)")
     }
 
     /// Iterate every declared host name (sorted for deterministic UX).
@@ -534,5 +540,39 @@ mod tests {
     fn missing_file_path_yields_local_only() {
         let cfg = HostsConfig::load(std::path::Path::new("/no/such/path.toml")).unwrap();
         assert_eq!(cfg.host_names(), vec!["local"]);
+    }
+
+    #[test]
+    fn resolve_name_matches_resolve() {
+        let toml = r#"
+            default = "vps"
+            [[host]]
+            name = "vps"
+            host = "v.example"
+            remote_workdir = "/srv/x"
+            [[rule]]
+            match = "tests-*"
+            host = "vps"
+        "#;
+        let cfg = HostsConfig::from_toml(toml).unwrap();
+        assert_eq!(cfg.resolve_name("tests-fast"), "vps");
+        assert_eq!(cfg.resolve_name("anything"), "vps");
+    }
+
+    #[test]
+    fn resolve_name_falls_back_to_default() {
+        let toml = r#"
+            default = "local"
+            [[host]]
+            name = "macbook"
+            host = "192.168.1.42"
+            remote_workdir = "/Users/x/y"
+            [[rule]]
+            match = "browser-*"
+            host = "macbook"
+        "#;
+        let cfg = HostsConfig::from_toml(toml).unwrap();
+        assert_eq!(cfg.resolve_name("browser-engine"), "macbook");
+        assert_eq!(cfg.resolve_name("foo"), "local");
     }
 }
