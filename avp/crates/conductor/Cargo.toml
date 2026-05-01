@@ -15,6 +15,16 @@ readme       = "../../README.md"
 name = "conductor"
 path = "src/main.rs"
 
+# Test fixture: a fake `claude` binary used by LocalClaudeDriver tests.
+# Cargo bakes its compiled path into env!("CARGO_BIN_EXE_claude-fixture")
+# at compile time so tests can spawn it deterministically.
+[[bin]]
+name = "claude-fixture"
+path = "src/bin/claude-fixture.rs"
+test = false
+doctest = false
+doc = false
+
 [lints]
 workspace = true
 

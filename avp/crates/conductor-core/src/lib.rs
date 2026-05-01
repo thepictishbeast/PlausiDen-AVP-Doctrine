@@ -46,7 +46,7 @@ pub mod policy;
 pub mod session;
 pub mod supervisor;
 
-pub use driver::{ClaudeDriver, DriverError, MockDriver, SessionHandle};
+pub use driver::{ClaudeDriver, DriverError, DriverEvent, MockDriver, SessionHandle};
 pub use event::{SupervisorEvent, SupervisorEventKind};
 pub use host::{Host, HostError, SshTarget};
 pub use policy::{PauseReason, RecoveryAction, RecoveryPolicy};

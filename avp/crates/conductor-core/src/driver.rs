@@ -18,13 +18,20 @@ use crate::{policy::PauseReason, session::SessionId};
 /// these per [`Session`]; drivers may store implementation-specific
 /// state behind it.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub struct SessionHandle {
     /// Stable session id (mirrors `Session::id`).
     pub id: SessionId,
     /// Driver-specific opaque token. The real driver puts a PID +
     /// session resume token here.
     pub token: String,
+}
+
+impl SessionHandle {
+    /// Construct a new session handle.
+    #[must_use]
+    pub const fn new(id: SessionId, token: String) -> Self {
+        Self { id, token }
+    }
 }
 
 /// One unit of progress observed from a session. Emitted by `poll`.
