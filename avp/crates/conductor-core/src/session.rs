@@ -11,7 +11,7 @@ use avp_core::IntentFile;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::policy::PauseReason;
+use crate::{host::Host, policy::PauseReason};
 
 /// Stable identifier for one session. Convention: agent_id from the
 /// intent. We don't use a separate uuid because a session is 1:1 with
@@ -108,7 +108,11 @@ pub struct Session {
     pub id: SessionId,
     /// The intent this session executes.
     pub intent: IntentFile,
-    /// Worktree path on disk (where the conductor will spawn `claude`).
+    /// Where the session runs (local subprocess vs SSH-reachable remote).
+    pub host: Host,
+    /// Worktree path. For [`Host::Local`] this is on the conductor's
+    /// machine; for [`Host::Ssh`] it must match the remote's
+    /// `SshTarget::remote_workdir`.
     pub worktree: PathBuf,
     /// Current FSM state.
     pub state: SessionState,
@@ -121,13 +125,21 @@ pub struct Session {
 }
 
 impl Session {
-    /// Construct a fresh session in the `Queued` state.
+    /// Construct a fresh session in the `Queued` state, defaulting to
+    /// [`Host::Local`]. Use [`Session::new_on`] to target a remote host.
     #[must_use]
     pub fn new(intent: IntentFile, worktree: PathBuf) -> Self {
+        Self::new_on(intent, worktree, Host::Local)
+    }
+
+    /// Construct a fresh session bound to a specific [`Host`].
+    #[must_use]
+    pub fn new_on(intent: IntentFile, worktree: PathBuf, host: Host) -> Self {
         let id = SessionId::from(&intent.agent_id);
         Self {
             id,
             intent,
+            host,
             worktree,
             state: SessionState::Queued,
             state_since: OffsetDateTime::now_utc(),
