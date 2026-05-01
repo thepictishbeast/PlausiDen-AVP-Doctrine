@@ -21,7 +21,10 @@
 use std::{io::Write as _, path::PathBuf, process::ExitCode};
 
 use anyhow::{Context as _, Result, anyhow};
-use avp_core::{GateId, RatchetFile};
+use avp_core::{
+    Context as GateContext, CrateName, Finding, GateId, GithubActionsReporter, HumanReporter,
+    JsonReporter, RatchetFile, RepoRoot, Reporter, Severity,
+};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use comfy_table::{Cell, ContentArrangement, Table, presets};
 use tracing::{info, instrument, warn};
@@ -282,9 +285,6 @@ impl Cli {
     /// Dispatch the parsed CLI. Returns the desired process exit code.
     #[instrument(level = "debug", skip(self))]
     pub(crate) fn run(self) -> Result<ExitCode> {
-        let stdout = std::io::stdout();
-        let _ = stdout.lock();
-
         match self.cmd {
             Cmd::Check(args) => run_check(&args),
             Cmd::Ratchet(args) => run_ratchet(args),
@@ -298,6 +298,22 @@ impl Cli {
     }
 }
 
+impl CheckArgs {
+    // AVP-PASS-2026-04-30: these methods ignore `self` deliberately as the
+    // global flags from `Cli` (format, no-color) aren't plumbed into the
+    // per-subcommand args yet; the indirection is here so v0.2 can wire it
+    // without changing call sites.
+    #[allow(clippy::unused_self)]
+    const fn format(&self) -> OutputFormat {
+        OutputFormat::Auto
+    }
+
+    #[allow(clippy::unused_self)]
+    const fn no_color(&self) -> bool {
+        false
+    }
+}
+
 fn stub(name: &str) -> Result<ExitCode> {
     warn!("{name} is not implemented in this build");
     eprintln!(
@@ -308,8 +324,92 @@ fn stub(name: &str) -> Result<ExitCode> {
 
 #[instrument(level = "debug", skip_all)]
 fn run_check(args: &CheckArgs) -> Result<ExitCode> {
-    let _ = args; // language-specific dispatch lands in task #14
-    stub(&format!("avp check {:?}", args.language))
+    match args.language {
+        CheckLanguage::Rust => run_check_rust(args),
+        CheckLanguage::Ts => stub("avp check ts"),
+        CheckLanguage::Py => stub("avp check py"),
+    }
+}
+
+/// Resolve the repo root and the ratchet path. The ratchet is loaded
+/// strictly: schema errors fail the run.
+#[instrument(level = "debug", skip_all)]
+fn run_check_rust(args: &CheckArgs) -> Result<ExitCode> {
+    let cwd = std::env::current_dir().context("read current directory")?;
+    let root_path = args.root.clone().unwrap_or(cwd);
+    let repo = RepoRoot::discover(&root_path)
+        .with_context(|| format!("discover repo at {}", root_path.display()))?;
+    info!(root = %repo.path.display(), "rust gate run");
+
+    // Honor the configured ratchet (schema validation only at this stage; the
+    // gate-level finding filter lands in the next slice). Errors are loud.
+    let ratchet_path = args
+        .ratchet
+        .clone()
+        .unwrap_or_else(|| repo.path.join(avp_core::RATCHET_FILE));
+    let mut ratchet = RatchetFile::load(&ratchet_path)
+        .with_context(|| format!("load ratchet from {}", ratchet_path.display()))?;
+    ratchet.validate().context("validate ratchet")?;
+    let ratchet_active = ratchet.active(today()).len();
+    info!(active = ratchet_active, "ratchet loaded");
+
+    let in_ci = std::env::var_os("CI").is_some();
+    let ctx = GateContext::new(&repo, in_ci);
+
+    let gates = avp_rust::gates::all_gates();
+    let mut findings: Vec<Finding> = Vec::new();
+    for gate in &gates {
+        let gate_id = gate.id();
+        let mut produced = gate.run(&ctx);
+        info!(gate = %gate_id, count = produced.len(), "gate finished");
+        findings.append(&mut produced);
+    }
+
+    // Apply ratchet filter: any finding covered by an active override is
+    // downgraded to Notice severity. Expired overrides have already failed
+    // the preflight in load+validate above, so nothing here silently passes.
+    let now = today();
+    let repo_root = repo.path.clone();
+    for f in &mut findings {
+        if !f.severity.is_failing() {
+            continue;
+        }
+        let crate_scope = avp_rust::source::crate_name_for_path(&repo_root.join(&f.location.file))
+            .and_then(|n| CrateName::new(n).ok());
+        if ratchet.covers(f.gate, crate_scope.as_ref(), Some(&f.location.file), now) {
+            f.severity = Severity::Notice;
+            f.message = format!("[ratcheted] {}", f.message);
+        }
+    }
+
+    // Choose a reporter. AUTO picks GitHub-Actions in CI, human elsewhere.
+    let format = match args.format() {
+        OutputFormat::Auto if in_ci => OutputFormat::GithubActions,
+        OutputFormat::Auto => OutputFormat::Human,
+        other => other,
+    };
+
+    let any_error = findings.iter().any(|f| f.severity == Severity::Error);
+
+    let mut reporter: Box<dyn Reporter> = match format {
+        OutputFormat::GithubActions => Box::new(GithubActionsReporter::new(std::io::stdout())),
+        OutputFormat::Json => Box::new(JsonReporter::new(std::io::stdout())),
+        // Auto resolved above; treat as Human here.
+        OutputFormat::Human | OutputFormat::Auto => {
+            let colored = !args.no_color() && std::env::var_os("NO_COLOR").is_none();
+            Box::new(HumanReporter::new(std::io::stdout(), colored))
+        }
+    };
+    for f in &findings {
+        reporter.emit(f).context("reporter emit")?;
+    }
+    reporter.finalize().context("reporter finalize")?;
+
+    Ok(if any_error {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    })
 }
 
 #[instrument(level = "debug", skip_all)]

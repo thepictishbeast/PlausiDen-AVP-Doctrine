@@ -45,7 +45,7 @@ pub mod repo;
 pub mod reporter;
 
 pub use finding::{Finding, Location, Severity};
-pub use gate::{Gate, GateId};
+pub use gate::{Context, Gate, GateId};
 pub use newtype::{CrateName, RepoRelativePath, SignerEmail};
 pub use ratchet::{RatchetEntry, RatchetError, RatchetFile};
 pub use repo::{RepoLanguage, RepoRoot};

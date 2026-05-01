@@ -20,6 +20,7 @@ workspace = true
 
 [dependencies]
 avp-core           = { workspace = true }
+avp-rust           = { workspace = true }
 
 # CLI / output
 clap               = { workspace = true }

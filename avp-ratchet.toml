@@ -1,0 +1,32 @@
+# avp-ratchet.toml — self-bootstrap overrides for the avp toolchain itself.
+#
+# These are temporary, signed, time-boxed exemptions while the workspace
+# ramps to full doctrine compliance. Every entry has a hard expiry; once
+# we pass the date, CI fails and we either fix the underlying gap or
+# extend the ratchet with a new SHIP-DECISION.
+#
+# Schema: see avp-core::ratchet::RatchetEntry.
+
+# ─────────────────────────────────────────────────────────────────────
+# bug-assumption: ~54 public fns missing BUG ASSUMPTION: comments today.
+# Plan: sweep all three crates as part of the v0.2 ramp; every fn already
+# has /// doc comments, the BUG ASSUMPTION line goes immediately above it.
+# ─────────────────────────────────────────────────────────────────────
+[[overrides]]
+gate          = "bug-assumption"
+reason        = "v0.1 self-bootstrap: avp's own pub fns get BUG ASSUMPTION comments during the 0.2 sweep."
+signed_by     = "william@plausiden.com"
+opened        = "2026-04-30"
+expires_after = "2026-09-30"
+
+# ─────────────────────────────────────────────────────────────────────
+# test-density-aggregate: ~106 tests / ~80 pub fns ≈ 1.3, below 4.0 floor.
+# Plan: ramp test density crate-by-crate during v0.2-v0.4. proptest-heavy
+# coverage on ratchet/gate logic is the highest-leverage place to start.
+# ─────────────────────────────────────────────────────────────────────
+[[overrides]]
+gate          = "test-density-aggregate"
+reason        = "v0.1 self-bootstrap: ramping tests/public_fns from ~1.3 to 4.0 over v0.2-v0.4."
+signed_by     = "william@plausiden.com"
+opened        = "2026-04-30"
+expires_after = "2026-09-30"
