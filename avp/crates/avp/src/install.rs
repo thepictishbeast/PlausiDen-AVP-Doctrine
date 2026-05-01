@@ -58,6 +58,13 @@ impl FilePlan {
 /// Compute the canonical file set that `avp install` would write.
 ///
 /// `version_tag` is the avp release tag the workflow should pin (e.g. `"v0.1.0"`).
+///
+/// The set includes:
+/// - `.github/workflows/avp.yml` — calls the composite action.
+/// - `avp-ratchet.toml` — empty starter (commented example).
+/// - `deny.toml`, `clippy.toml`, `rustfmt.toml`, `rust-toolchain.toml`
+///   — the canonical lint configs from the avp workspace itself, so
+///   every sibling lints with the same rules `avp check rust` enforces.
 #[must_use]
 pub(crate) fn canonical_files(version_tag: &str) -> Vec<(PathBuf, String)> {
     let workflow = templates::AVP_WORKFLOW.replace("{{VERSION}}", version_tag);
@@ -66,6 +73,13 @@ pub(crate) fn canonical_files(version_tag: &str) -> Vec<(PathBuf, String)> {
         (
             PathBuf::from("avp-ratchet.toml"),
             templates::RATCHET_STARTER.to_owned(),
+        ),
+        (PathBuf::from("deny.toml"), templates::DENY.to_owned()),
+        (PathBuf::from("clippy.toml"), templates::CLIPPY.to_owned()),
+        (PathBuf::from("rustfmt.toml"), templates::RUSTFMT.to_owned()),
+        (
+            PathBuf::from("rust-toolchain.toml"),
+            templates::RUST_TOOLCHAIN.to_owned(),
         ),
     ]
 }
@@ -239,6 +253,14 @@ mod templates {
     /// from a clean template and add overrides as needed.
     pub(super) const RATCHET_STARTER: &str =
         include_str!("../../../templates/sibling-avp-ratchet.toml");
+    /// Canonical cargo-deny config, sourced from the avp workspace.
+    pub(super) const DENY: &str = include_str!("../../../deny.toml");
+    /// Canonical clippy tuning, sourced from the avp workspace.
+    pub(super) const CLIPPY: &str = include_str!("../../../clippy.toml");
+    /// Canonical rustfmt config, sourced from the avp workspace.
+    pub(super) const RUSTFMT: &str = include_str!("../../../rustfmt.toml");
+    /// Canonical rust-toolchain pin, sourced from the avp workspace.
+    pub(super) const RUST_TOOLCHAIN: &str = include_str!("../../../rust-toolchain.toml");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
