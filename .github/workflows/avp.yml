@@ -31,10 +31,17 @@ jobs:
     timeout-minutes: 30
     env:
       RUSTFLAGS: -D warnings
-      # See release.yml for why this isn't /home/runner/...
-      TMPDIR: ${{ runner.temp }}/avp-build-tmp
     steps:
       - uses: actions/checkout@v4
+
+      # See release.yml: runner.temp can't appear in job-level env:.
+      # Configure TMPDIR via $GITHUB_ENV before the toolchain setup
+      # step (which calls mktemp internally).
+      - name: Configure TMPDIR
+        shell: bash
+        run: |
+          mkdir -p "${{ runner.temp }}/avp-build-tmp"
+          echo "TMPDIR=${{ runner.temp }}/avp-build-tmp" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -43,10 +50,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: avp
-
-      - name: Pre-build TMPDIR
-        shell: bash
-        run: mkdir -p "$TMPDIR"
 
       - name: cargo fmt --check
         working-directory: avp
@@ -76,20 +79,20 @@ jobs:
     name: ratchet preflight
     runs-on: [self-hosted, linux, x64, plausiden]
     timeout-minutes: 5
-    env:
-      TMPDIR: ${{ runner.temp }}/avp-build-tmp
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure TMPDIR
+        shell: bash
+        run: |
+          mkdir -p "${{ runner.temp }}/avp-build-tmp"
+          echo "TMPDIR=${{ runner.temp }}/avp-build-tmp" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: avp
-
-      - name: Pre-build TMPDIR
-        shell: bash
-        run: mkdir -p "$TMPDIR"
 
       - name: avp ratchet preflight
         working-directory: avp

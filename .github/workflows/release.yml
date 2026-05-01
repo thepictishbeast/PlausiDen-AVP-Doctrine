@@ -26,10 +26,6 @@ jobs:
     env:
       TARGET: x86_64-unknown-linux-musl
       RUSTFLAGS: "-C target-feature=+crt-static -D warnings"
-      # SECURITY: ${{ runner.temp }} is the only path GitHub guarantees
-      # is writable on the self-hosted runner. /home/runner is read-only
-      # on this Kali-based runner (run 25219965448).
-      TMPDIR: ${{ runner.temp }}/avp-build-tmp
     outputs:
       # SECURITY: at the job level, `outputs:` only supports
       # `${{ steps.X.outputs.Y }}` style expressions — `env.TARGET`
@@ -43,14 +39,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # SECURITY: TMPDIR is set at the job level so every shell-based
-      # step picks it up. The directory must exist *before* any step
-      # runs `mktemp` — including dtolnay/rust-toolchain's installer.
-      # If we defer this to after toolchain setup, the rustup install
-      # fails with "mktemp: failed to create directory" (run 25217736666).
-      - name: Pre-create TMPDIR
+      # SECURITY: TMPDIR is set via $GITHUB_ENV (not job-level env:)
+      # because `${{ runner.temp }}` is only available inside step
+      # contexts — putting it in job-level env: silently fails workflow
+      # validation. We also create the dir here so any later step's
+      # `mktemp` (notably dtolnay/rust-toolchain's installer) finds it
+      # ready. /home/runner is read-only on the Kali self-hosted
+      # runner (run 25219965448), so runner.temp is the only safe path.
+      - name: Configure TMPDIR
         shell: bash
-        run: mkdir -p "$TMPDIR"
+        run: |
+          mkdir -p "${{ runner.temp }}/avp-build-tmp"
+          echo "TMPDIR=${{ runner.temp }}/avp-build-tmp" >> "$GITHUB_ENV"
 
       - name: Read tag
         id: meta
