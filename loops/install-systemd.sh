@@ -81,6 +81,9 @@ uninstall_all() {
 }
 
 list_installed() {
+  # Service names are restricted to [A-Za-z0-9._-] by systemd, so the
+  # ls→xargs pattern is safe (no shell metacharacters possible).
+  # shellcheck disable=SC2011
   ls "$SYSTEMD_DIR"/${PREFIX}*.service 2>/dev/null \
     | xargs -I{} basename {} .service \
     | sed "s/^${PREFIX}//"
