@@ -14,8 +14,9 @@ mkdir -p "$ARCHIVE_DIR"
 
 cutoff=$(date -u -d '30 days ago' +%s 2>/dev/null || date -u -v-30d +%s)
 tmp=$(mktemp)
-moved=0
 
+# `moved` lives inside the python heredoc below; the bash-side
+# variable is intentionally not used.
 python3 - <<PY
 import json, os, sys, time
 from datetime import datetime, timezone
