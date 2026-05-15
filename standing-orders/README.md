@@ -1,17 +1,21 @@
 # Standing Orders
 
-> ⚠️ **NOT CANONICAL** — this directory describes an isolated multi-Claude
-> swarm setup on one specific developer machine. It is preserved here for
-> the maintainer's continued local reference and use, but **is NOT normative
-> guidance for other PlausiDen consumers, agents, or contexts**. Do not
-> adopt these files as governing rules unless you are recreating that
-> specific setup. The IPC bus paths, role assignments, and audit-handoff
-> protocols described here are local to that setup, not the PlausiDen
-> ecosystem at large.
+> ⚠️ **APPLIES TO MULTI-AGENT SETUPS ONLY** — these files define
+> coordination protocol for environments running **multiple Claude Code
+> instances (or other AI agents) working together as a swarm**: role
+> assignments (Claude-0 Architect / Claude-1 Refiner / Claude-2 Frontend),
+> IPC bus discipline, escalation rules, stop conditions, per-agent memory
+> layout. They are **not** intended as governing rules for single-agent
+> operation (one Claude Code on one host, doing one thing at a time).
 >
-> For general PlausiDen-namespace doctrine and agent guidance, refer to
-> [`../DOCTRINE.md`](../DOCTRINE.md), [`../README.md`](../README.md), and
-> the per-project doctrine in each consumer repo.
+> - **Single-agent setup:** this directory is reference material, not
+>   rules you must follow. Apply the per-project doctrine in each
+>   consumer repo instead.
+> - **Multi-agent swarm:** read the role file matching your agent plus
+>   all cross-cutting files (stop-conditions, escalation, ipc, memory).
+>
+> The IPC bus paths described here assume a primary host filesystem;
+> adjust per [`ipc.md`](ipc.md) for your deployment.
 
 > What an AI agent reads at session start. Re-read on every context compaction.
 
