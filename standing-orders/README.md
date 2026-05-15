@@ -1,5 +1,18 @@
 # Standing Orders
 
+> ⚠️ **NOT CANONICAL** — this directory describes an isolated multi-Claude
+> swarm setup on one specific developer machine. It is preserved here for
+> the maintainer's continued local reference and use, but **is NOT normative
+> guidance for other PlausiDen consumers, agents, or contexts**. Do not
+> adopt these files as governing rules unless you are recreating that
+> specific setup. The IPC bus paths, role assignments, and audit-handoff
+> protocols described here are local to that setup, not the PlausiDen
+> ecosystem at large.
+>
+> For general PlausiDen-namespace doctrine and agent guidance, refer to
+> [`../DOCTRINE.md`](../DOCTRINE.md), [`../README.md`](../README.md), and
+> the per-project doctrine in each consumer repo.
+
 > What an AI agent reads at session start. Re-read on every context compaction.
 
 The doctrine manages the agent so the human doesn't have to. An agent that
