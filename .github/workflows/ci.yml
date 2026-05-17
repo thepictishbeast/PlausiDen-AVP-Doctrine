@@ -13,7 +13,7 @@ concurrency:
 jobs:
   shell:
     name: shellcheck
-    runs-on: [self-hosted, linux, x64, plausiden]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck all .sh files
