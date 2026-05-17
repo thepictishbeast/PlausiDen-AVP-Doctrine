@@ -656,6 +656,60 @@ jobs:
 
 ---
 
+## 8b. BRANCH HYGIENE & CI-GATED PROMOTION (codified 2026-05-16)
+
+CI that never finishes is not CI. The AVP-2 loop requires every change to clear Tiers 1–3 *before* it joins the next pass. A push that cancels its own predecessor's run leaves HEAD unvalidated — the verification graph has a hole, and the loop is silently broken.
+
+### The convention
+
+| Branch | Role | Push policy |
+|---|---|---|
+| `main` | Active development. Every commit, every WIP, every loop iteration lands here. | Push freely. CI MUST run to completion on every push. |
+| `master` | Validated tip. Mirrors the most recent `main` commit that has cleared CI green AND all in-tree tests AND `cargo clippy`/`tsc --noEmit`. | NEVER push directly. Only fast-forward from `main` when the promotion conditions are met. |
+
+### Promotion gate
+
+Before a `main → master` fast-forward, ALL of the following MUST hold for the commit being promoted:
+
+1. `gh run list --branch main --limit 1 --json conclusion` shows `success` for the latest CI run on that exact SHA.
+2. No queued or in-progress runs on the same SHA (otherwise the gate is racing the verdict).
+3. Local `cargo test --workspace --locked` and `npm test --if-present` (or equivalent stack-specific suite) pass on a clean checkout of that SHA.
+4. No `SHIP-DECISION:` annotation downgrades; if one exists for the commit, an explicit human signs the residual risk per §9.
+5. The `git push origin main:master` is a true fast-forward — if it requires `--force` or `--force-with-lease`, the gate has been bypassed somewhere upstream and the promotion is REJECTED until history is reconciled.
+
+### Anti-pattern: the rapid-push CI vacuum
+
+Symptom: `gh run list --branch <b>` shows a column of `cancelled` runs because the `concurrency: cancel-in-progress: true` workflow keeps killing the prior run before it can complete. Result: HEAD is N commits ahead of the last green CI verdict — possibly N = double digits.
+
+Remediation:
+- Stop pushing. The next push will cancel CI again.
+- Let the most recent run complete (delete the concurrency cancellation for the in-flight run, or just wait).
+- If the verdict is `failure`, fix and push the fix as a NEW commit. Do NOT amend or force-push.
+- If the verdict is `success`, promote to `master` per the gate above.
+- Resume normal pushes only after master and main converge.
+
+### Divergent-branch reconciliation
+
+When two branches have unrelated commits (common after solo dev across machines, or after a sibling-Claude session committed work elsewhere):
+
+1. **Backup first.** Push the about-to-be-changed branch to a dated archive: `git push origin <branch>:refs/heads/<branch>-archive-YYYY-MM-DD`. This is non-negotiable — even with `--force-with-lease`, reflog can be GC'd and the work becomes unrecoverable.
+2. **Audit overlap.** For each unique commit on each side, classify: (a) genuine new feature, (b) duplicate of work already present on the other side under a different SHA (compare titles + dates + diff stats — rebased dupes are common), (c) obsolete or superseded. Do NOT skip this — silently discarding non-dupes loses work.
+3. **Prefer merge over force.** A `git merge --no-ff` from the other branch creates a merge commit that preserves both histories AND lets the target branch fast-forward. Only fall back to `--force-with-lease` when merge is infeasible AND the archive from step 1 exists AND a human has signed off.
+4. **Resolve conflicts deliberately.** `git checkout --ours` / `--theirs` on bulk conflicts is acceptable ONLY when the discarded side's content is provably present elsewhere (the dupe case from step 2) or has been explicitly classified as superseded. Otherwise resolve per-file by hand.
+5. **Re-evaluate after merge.** Genuine new features from the other branch that were dropped during conflict resolution MUST be re-applied via cherry-pick or rewrite, with their own CI cycle, before promotion to master.
+
+### Cross-Claude enforcement
+
+Every Claude session in a PlausiDen repo MUST:
+- Before any push: check current branch. If on `master`, refuse and redirect to `main`. If on `main`, proceed.
+- Before any promotion: run the §promotion gate. If any check fails, refuse and surface the failure.
+- Before any force-push: refuse, surface the archive-then-merge path above, and require explicit human override in the prompt for that session.
+- After any reconciliation: write a `CROSSFIX:` annotation describing what was merged, what was dropped, and what was re-applied (per §7).
+
+This section is binding on all Claude variants (Opus, Sonnet, Haiku) and all session modes (interactive, /loop, cron, autonomous). Violations of the promotion gate are P0 doctrine bugs — surface them in the next session's first AVP pass.
+
+---
+
 ## 9. LOOP INTERRUPTION (SHIPPING)
 
 After a MINIMUM of 36 passes, the developer MAY interrupt with:
