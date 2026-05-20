@@ -1,0 +1,148 @@
+# Doctrine — Logging / observability rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "logging"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "log-001"
+name      = "Structured tracing with consistent fields, OTLP-compatible"
+domain    = "logging"
+statement = "All logging uses `tracing` with structured fields (no string interpolation into messages); the emitted span and event format is OTLP-compatible so OpenTelemetry collectors can consume it."
+rationale = """
+String-interpolated log messages are unsearchable, unaggregatable, and
+unparseable at scale. Structured tracing makes every log line a typed
+event with named fields — request_id, principal_id, capability, latency_ms,
+error_class — that downstream tools can filter, aggregate, and graph.
+OTLP compatibility ensures the platform's observability outputs work
+with the broader ecosystem (Tempo, Honeycomb, Datadog, Grafana) without
+custom adapters.
+"""
+enforcement = [
+  "loom-lint refuses `println!` / `eprintln!` / `log::*` macros in substrate crates; only `tracing::*` permitted",
+  "loom-lint refuses tracing macros with string interpolation in the message position — fields must be named",
+  "forge phase: tracing_compliance — verifies all crates depend only on tracing + tracing-subscriber, no log crate fallback",
+]
+applies_to    = ["every substrate crate", "every *-core crate", "forge-cli, loom-cli, crawler"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["[[super-society-tech-stack]] tracing default", "OpenTelemetry Protocol Specification"]
+
+[[rule]]
+id        = "log-002"
+name      = "Error paths log with debug context"
+domain    = "logging"
+statement = "Every error path that returns `Err` to a caller emits a `tracing::error!` or `tracing::warn!` event with structured fields naming the error, the operation that failed, and the inputs that triggered the failure (with sensitive fields redacted per sec-005)."
+rationale = """
+Returning Err without logging means the caller has the only record of
+the failure; logs at the boundary are silent about it. When a user
+reports 'it didn't work,' there's nothing to trace. The discipline is
+that every error path logs its own context — the operation, the
+inputs, the error class — so that the next debugger has a structured
+record without needing to add logging after the fact.
+"""
+enforcement = [
+  "loom-lint flags fn bodies whose ? operator on a Result returns Err without a preceding tracing::error! / warn! event",
+  "forge phase: error_logging_coverage — scans for unhandled-error paths",
+  "PR review: every new error path includes the structured log",
+]
+applies_to    = ["every fn returning Result in substrate crates"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["AuditLogged"]
+references    = ["sec-005 (Sensitive redacted in logs)"]
+
+[[rule]]
+id        = "log-003"
+name      = "Long-running operations emit progress events"
+domain    = "logging"
+statement = "Any operation expected to take more than ~500ms (build pipeline phase, audit run, crawler journey, migration, deploy step) emits `tracing::info!` progress events at meaningful checkpoints with structured fields naming the step + the items-processed count."
+rationale = """
+A silent long-running operation is indistinguishable from a hung one.
+Operators (and AI agents observing) need progress signal to know whether
+to wait or intervene. The discipline is that the operation itself
+reports its progress through structured events; consumers (terminal UI,
+admin dashboard, CI log viewer) render the progress without needing to
+parse strings.
+"""
+enforcement = [
+  "loom-lint warns on fn bodies wrapping known-slow operations (cargo invocations, network calls, full directory walks) without progress events",
+  "forge phase: long_operation_progress — verifies named long-running operations emit at least one progress event",
+  "operator UX testing: progress is visible in CI logs and terminal renderings",
+]
+applies_to    = ["forge build pipeline", "crawler journey runner", "migration runner", "deploy commands"]
+severity      = "warn"
+lifecycle     = "stable"
+references    = ["log-001"]
+
+[[rule]]
+id        = "log-004"
+name      = "Async boundaries propagate trace context"
+domain    = "logging"
+statement = "Spawning a tokio task, sending an HTTP request, or invoking IPC must propagate the active tracing span context so that downstream events are correlated with the originating request."
+rationale = """
+Without trace propagation, async boundaries break the causal chain;
+a downstream error in a spawned task is impossible to correlate back
+to the request that triggered it. Trace propagation makes the chain
+recoverable: every event downstream carries the parent span ID, and
+the observability tool reconstructs the full request path. This is the
+operational difference between 'we have logs' and 'we can debug.'
+"""
+enforcement = [
+  "loom-lint flags tokio::spawn / reqwest calls / IPC sends without #[tracing::instrument] or explicit span attachment",
+  "forge phase: trace_propagation_audit — verifies cross-boundary code includes trace context",
+  "HTTP middleware (axum) auto-injects trace headers on outbound requests; auto-extracts on inbound",
+]
+applies_to    = ["every async boundary", "every HTTP service", "every IPC sender / receiver"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["log-001 (OTLP-compatible)", "W3C Trace Context"]
+
+[[rule]]
+id        = "log-005"
+name      = "User-facing errors are actionable without leaking sensitive info"
+domain    = "logging"
+statement = "Errors returned to end users / external API consumers contain enough information to act on (what failed, what to try) without disclosing implementation details, file paths, internal IDs, or sensitive data (per sec-005)."
+rationale = """
+Verbose internal errors leaked to users are both poor UX and a
+security risk — they reveal substrate internals to an adversary. Vague
+'something went wrong' errors are also poor UX — the user can't fix
+anything. The discipline is two separate error surfaces: the internal
+log entry has full context; the user-facing message is actionable but
+sanitized.
+"""
+enforcement = [
+  "forge phase: error_disclosure_audit — pattern-matches error responses for file paths, stack frames, internal IDs",
+  "API contract tests assert error responses match documented user-facing shapes",
+  "PR review: any new error response is reviewed for both surfaces (actionable + sanitized)",
+]
+applies_to    = ["every HTTP API error response", "every CLI user-facing error", "every UI error rendering"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Sensitive"]
+references    = ["sec-005", "OWASP Improper Error Handling"]
+
+[[rule]]
+id        = "log-006"
+name      = "Audit log entries are hash-chained per observability-core AuditChain"
+domain    = "logging"
+statement = "Security-relevant events (auth, capability invocation, content publish/unpublish, configuration change) write to an observability-core AuditChain; the chain is hash-linked + monotonic + tamper-evident."
+rationale = """
+Audit log entries that can be quietly mutated have no integrity. The
+hash-chain makes every entry depend on the previous one; tampering
+with any past entry breaks the chain from that point forward. Combined
+with forge audit-log verifier (T91), this gives the platform a tamper-
+evident record of every security-relevant event.
+"""
+enforcement = [
+  "forge audit-log <chain.json> verifies chain integrity (monotonic, prev_hash linkage, entry_hash freshness)",
+  "manifest-core T33 verifies every AuditLogged capability writes to an AuditChain",
+  "operator-facing chain-tamper alerts on verifier failure",
+]
+applies_to    = ["every state-modifying or sensitive capability", "every authentication event"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["AuditLogged"]
+references    = ["sec-006 (state-modifying = AuditLogged)", "build-005 (Merkle chain reproducibility)", "observability-core T91"]
