@@ -1,0 +1,187 @@
+# Doctrine — Build / Audit domain rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "build"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "build-001"
+name      = "Production builds pass strict findings"
+domain    = "build"
+statement = "Forge builds in production mode must finish with strict findings == 0."
+rationale = """
+Production mode treats every gap as fatal. A build that ships with strict
+findings is a build that knowingly ships broken UI, broken backends, broken
+audit posture, or broken doctrine compliance. The strict-findings gate is
+the load-bearing pre-deploy check; bypassing it via poc mode for
+production shipping is a doctrine violation tracked under build-007.
+"""
+enforcement = [
+  "forge build --mode production fails on any strict finding",
+  "deploy phase refuses to publish a non-zero-strict build report",
+  "CI gate blocks merge to release branches on non-green builds",
+]
+applies_to    = ["all sites at production-mode shipping", "all PR merges to release branches"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["forge.toml [forge].mode", "AVP2_PROTOCOL.md tier 1"]
+
+[[rule]]
+id        = "build-002"
+name      = "Every Forge phase declares its inputs and outputs"
+domain    = "build"
+statement = "Every Phase trait implementation documents its required ctx inputs, its emitted Finding kinds, and its output side-effects."
+rationale = """
+Phases are the build's primary composition unit. A phase whose inputs
+and outputs are undocumented becomes mystery infrastructure — operators
+can't predict what triggers it, what it produces, or how to debug a
+finding it emits. Documentation is part of the contract, not a future
+nice-to-have.
+"""
+enforcement = [
+  "manifest-core verifies every phase in phases.toml has documented inputs + outputs",
+  "rustdoc lints fail builds on Phase impls without /// doc comments on the impl block",
+  "CI cross-references docs against the actual struct fields and emitted Finding kinds",
+]
+applies_to    = ["forge-phases crate", "any future *-phases crate"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["forge-phases module structure", "ADR placeholder"]
+
+[[rule]]
+id        = "build-003"
+name      = "No unwrap or expect in non-test paths"
+domain    = "build"
+statement = "Library and binary code may not call .unwrap() or .expect() outside of #[cfg(test)] modules or explicitly-justified SAFETY blocks."
+rationale = """
+unwrap and expect propagate as runtime panics. In a build pipeline that
+ships to production, a panic is a build-time bug masquerading as a
+deploy-time crash. The discipline is to handle every Result and Option
+explicitly: `?` for propagation, match for branching, anyhow at binary
+boundaries, thiserror in libraries. Where a panic is actually correct
+(e.g. an invariant the type system can't express), the SAFETY: justification
+makes the decision auditable.
+"""
+enforcement = [
+  "clippy::unwrap_used + clippy::expect_used set to deny in workspace lints",
+  "forge audit annotation_review surfaces every SAFETY comment for review",
+  "PR review rejects new unwrap/expect calls without justification",
+]
+applies_to    = ["forge-core", "forge-phases", "forge-cli", "loom-*", "all *-core crates"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["AVP2_PROTOCOL.md tier 2", "AVP-Doctrine/doctrine/anti-patterns.toml#unwrap-in-library"]
+
+[[rule]]
+id        = "build-004"
+name      = "Every crate forbids unsafe code by default"
+domain    = "build"
+statement = "Every Rust crate in the workspace declares #![forbid(unsafe_code)] at the crate root unless it has a documented, audited reason to allow unsafe."
+rationale = """
+Unsafe is the seam where Rust's memory safety guarantees end and the
+programmer's discipline begins. Unsafe per crate should be a deliberate,
+audited choice — not the default. Forbidding unsafe at the crate root
+means any unsafe block requires removing the forbid lint, which makes
+the introduction visible in PR diffs. The substrate has no place for
+ad-hoc unsafe.
+"""
+enforcement = [
+  "loom-lint and forge audit secret-check scan for missing forbid(unsafe_code) attribute",
+  "PR review treats new allow(unsafe_code) as a doctrine-exception requiring justification",
+  "CI fails builds that add unsafe without the corresponding ADR",
+]
+applies_to    = ["every crate in PlausiDen-Forge, PlausiDen-Loom, PlausiDen-Crawler, *-core crates"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["AVP2_PROTOCOL.md tier 3"]
+
+[[rule]]
+id        = "build-005"
+name      = "Builds are reproducible from the Merkle chain"
+domain    = "build"
+statement = "Every Forge build report links to its predecessor via prev_hash; the chain is verifiable via `forge verify`."
+rationale = """
+Reproducibility means a third party can audit the platform's history.
+The Merkle chain ties every build to its predecessor; tampering with
+one report invalidates the chain from that point forward. This is the
+substrate's audit posture — operators can't quietly retroactively change
+the historical record because the chain refuses to verify.
+"""
+enforcement = [
+  "phase: render writes a build-{timestamp}.json report containing prev_hash + chain_length",
+  "forge verify walks the chain and asserts integrity at every link",
+  "Ed25519 signatures on each report extend the verification to the platform's identity",
+]
+applies_to    = ["forge-cli build pipeline", "every shipped build report"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["AuditLogged"]
+references    = ["forge-phases/src/render.rs T26", "Ed25519 attestation via ed25519-dalek"]
+
+[[rule]]
+id        = "build-006"
+name      = "Phase order matches the manifest"
+domain    = "build"
+statement = "The order phases execute in must match the order declared in `forge.toml [checks].phases` or `phases.toml`."
+rationale = """
+Phase order is a contract: some phases depend on others' outputs. An
+implicit reordering (e.g. by alphabetical name) silently breaks
+dependencies and produces inconsistent reports. The manifest is the
+single source of truth for ordering; the implementation must honor it
+deterministically.
+"""
+enforcement = [
+  "manifest-core T33 gate verifies phase depends_on is acyclic + resolvable",
+  "forge-cli pipeline orchestrator iterates phases in manifest order, not alphabetical",
+  "Phase trait impl that ignores manifest order fails CI integration tests",
+]
+applies_to    = ["forge-cli pipeline orchestrator", "manifest-core"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["forge.toml structure", "manifest-core T33"]
+
+[[rule]]
+id        = "build-007"
+name      = "No bypass flags shipped without explicit substrate-bypass register entry"
+domain    = "build"
+statement = "Production deploys must not use --no-verify, --no-gpg-sign, force-push, or equivalent flag to bypass a failing gate, unless the bypass is registered per SUBSTRATE_DISCIPLINE.md and tagged inline with `// SUBSTRATE-BYPASS(issue-id)`."
+rationale = """
+The gate caught a real problem. Bypassing it ships the problem with a
+paper trail saying you knew. The substrate-bypass workflow exists for
+genuine emergencies and makes the bypass visible, tracked, and time-
+bounded. Casual bypass without registration is doctrine violation; the
+register is the only sanctioned path.
+"""
+enforcement = [
+  "git pre-push hook detects --no-verify flags and refuses unless SUBSTRATE-BYPASS tag exists in diff",
+  "forge audit bypass-register cross-references inline tags vs the site's bypass-register.toml",
+  "CI fails when bypass usage diverges from registry",
+]
+applies_to    = ["every deploy", "every PR to release branches"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["SUBSTRATE_DISCIPLINE.md substrate-bypass workflow", "AVP-Doctrine/doctrine/anti-patterns.toml#no-verify-bypass"]
+
+[[rule]]
+id        = "build-008"
+name      = "PRs touching substrate behavior update AGENTS.md in the same commit"
+domain    = "build"
+statement = "Any PR that adds, removes, or changes a Phase, primitive, manifest field, or canonical default must update the relevant AGENTS.md tool-inventory section in the same PR."
+rationale = """
+AGENTS.md is the substrate's session-start orientation document. If it
+lags behind the code, AI agents (and human contributors) start from
+inaccurate orientation and reach for substrate capabilities that no
+longer exist or in the wrong shape. Treating AGENTS.md as part of the
+change keeps the document ruthlessly current.
+"""
+enforcement = [
+  "CI rule: PRs modifying forge-phases / loom-cms-render / manifest-core that don't touch AGENTS.md fail",
+  "PR review checklist: 'did this change need an AGENTS.md update? if yes, is it included?'",
+  "Generated tool inventory section in AGENTS.md is regenerated by tooling on every PR",
+]
+applies_to    = ["every PR modifying substrate public surface"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["[[tool-starvation-anti-pattern]] memory", "task #145"]
