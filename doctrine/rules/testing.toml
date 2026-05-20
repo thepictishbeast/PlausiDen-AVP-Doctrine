@@ -1,0 +1,192 @@
+# Doctrine — Testing rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "testing"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "test-001"
+name      = "Every public function has a unit test"
+domain    = "testing"
+statement = "Every `pub fn` (free function, method, associated function) in a substrate crate must have at least one unit test exercising it at the typical happy path."
+rationale = """
+A pub fn without a test is a function whose intended behavior lives
+only in the implementer's head. Future contributors (human or AI) have
+no contract to verify against and no signal when refactoring breaks
+the function. The unit test fixes the contract at the source: the
+documented behavior is the tested behavior. Test gap = doctrine
+violation tracked + remediated, not tolerated indefinitely.
+"""
+enforcement = [
+  "forge phase: test_coverage_audit — walks every `pub fn` and verifies a test exists touching it (file or name pattern match)",
+  "CI fails PRs adding new pub fns without test coverage in the same commit",
+  "cargo-tarpaulin / llvm-cov integration produces per-crate coverage report on every CI run; threshold = 90%",
+]
+applies_to    = ["every substrate crate", "every *-core crate", "loom-cms-render", "forge-phases"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["AVP2_PROTOCOL.md tier 1", "build-002 (every phase documents its inputs/outputs)"]
+
+[[rule]]
+id        = "test-002"
+name      = "Property-based test at every input boundary"
+domain    = "testing"
+statement = "Every function that accepts external input (parser, deserializer, validator, schema-checker, audit phase) must have a proptest harness asserting invariants across the space of valid inputs."
+rationale = """
+Unit tests verify the cases the author thought to write; proptests
+discover the cases the author didn't think of. A parser that's fine
+on the sample inputs may panic on malformed UTF-8, overflow on giant
+strings, or accept invalid shapes the schema should reject. Proptest
+generates inputs from the schema and asserts the invariants hold;
+failing examples are concrete reproductions, not statistical hints.
+"""
+enforcement = [
+  "loom-lint requires every parser-/validator-shaped function to have a proptest! macro in its tests module",
+  "forge phase: property_coverage_audit — lists functions matching the parser pattern that lack proptest coverage",
+  "PR review rejects new boundary functions without proptest harnesses; mutation testing (cargo-mutants) on changed code paths",
+]
+applies_to    = ["every parser in *-core crates", "every Forge phase emitting Findings", "every schema validator", "every TOML / JSON / wire-format loader"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["AVP2_PROTOCOL.md tier 2", "[[super-society-tech-stack]]"]
+
+[[rule]]
+id        = "test-003"
+name      = "Cryptographic operations test both correctness and invalid-input rejection"
+domain    = "testing"
+statement = "Every cryptographic operation (signature, verification, encryption, decryption, key derivation, MAC) has tests covering (a) correct round-trip behavior, (b) invalid-input rejection (malformed keys, tampered ciphertexts, wrong tags), (c) edge cases (empty input, max-length input, all-zero input)."
+rationale = """
+Crypto bugs that pass happy-path tests can still fail catastrophically
+on adversarial inputs. The discipline is testing both directions —
+correct inputs produce correct outputs AND malformed inputs are
+explicitly rejected with the right error. A signature verifier that
+accepts a tampered MAC is the same as no verifier at all; the test
+must prove rejection happens.
+"""
+enforcement = [
+  "loom-lint requires #[test] blocks in crypto modules to include both ok + err assertions",
+  "forge phase: crypto_test_coverage — counts assert_eq! vs assert!(matches!(_, Err(_))) ratio per crypto module; minimum 1:1",
+  "security-team review on every crypto PR confirms invalid-input cases are exercised",
+]
+applies_to    = ["crucible-crypto", "lfi-crypto wrapper (if exists)", "every *-core crate touching crypto"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Encrypted", "Sensitive"]
+references    = ["sec-002 (vetted primitives only)", "AVP2_PROTOCOL.md tier 3"]
+
+[[rule]]
+id        = "test-004"
+name      = "Every Forge phase has a regression fixture demonstrating its detection"
+domain    = "testing"
+statement = "Every Forge phase must ship with at least one test fixture demonstrating it correctly emits a Finding on input violating the rule it enforces."
+rationale = """
+A phase whose detection is untested may not detect the violation it
+claims to. The regression fixture pins the detection at phase-
+introduction time: 'here is an input that violates rule X, here is
+the Finding the phase emits.' If the phase ever silently stops
+detecting that violation, the fixture test fails. This is the
+substrate's safety net against phases drifting into ineffectiveness.
+"""
+enforcement = [
+  "forge phase: phase_regression_coverage — verifies every registered phase has at least one fixture in tests/fixtures/<phase>/",
+  "CI runs each fixture's input through the phase, asserts the expected Finding is produced",
+  "PR review rejects new phases without regression fixtures",
+]
+applies_to    = ["forge-phases (every module)", "future external-phase crates registered via manifest-core"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["build-002 (phase docs every phase)", "prim-010 (visual regression per primitive)"]
+
+[[rule]]
+id        = "test-005"
+name      = "Visual regression coverage per primitive (rendered at 390/768/1280)"
+domain    = "testing"
+statement = "Every Loom primitive must have at least one visual regression baseline captured at 390 px (mobile), 768 px (tablet), and 1280 px (desktop) viewports; PR diff is gated by pixel-comparison against baseline."
+rationale = """
+Visual regression catches unintentional appearance changes that unit
+tests and lint rules miss. A primitive's appearance is part of its
+contract; breaking the contract silently produces site drift across
+hundreds of pages. The 3-viewport baseline covers the design-system's
+declared breakpoints; subtler responsive failures (in-between viewports)
+are caught by separate audit phases.
+"""
+enforcement = [
+  "loom-audit (T46+ — pending) captures and diffs baselines as part of the build pipeline",
+  "forge phase: visual_regression — non-zero pixel diff against baseline = strict finding (with diff image artifact)",
+  "PR review rejects new primitives without baselines; baseline updates require explicit reviewer sign-off",
+]
+applies_to    = ["every loom-components primitive", "every loom-cms-render CmsSection variant"]
+severity      = "experimental"
+lifecycle     = "experimental"
+related_traits = ["MobileFriendly"]
+references    = ["prim-010 (same rule, primitive-side perspective)"]
+
+[[rule]]
+id        = "test-006"
+name      = "Contract tests for every public API endpoint"
+domain    = "testing"
+statement = "Every public HTTP endpoint, MCP tool, and IPC capability has a contract test verifying its declared input schema is enforced, its output schema matches the manifest, and the documented error responses are produced for documented error conditions."
+rationale = """
+The manifest declares contracts; the implementation must satisfy them.
+Contract tests pin the relationship explicitly: this endpoint with
+this input produces this output (or this documented error). Drift
+between manifest and impl is detected at PR time, not by downstream
+consumers reporting bugs.
+"""
+enforcement = [
+  "manifest-core T33 + manifest-attest verify every declared capability has a matching contract test",
+  "forge phase: contract_coverage — checks contract-test count vs capability-declaration count; mismatch = finding",
+  "CI runs contract tests on every PR; mismatch between declared schema and actual response = build fail",
+]
+applies_to    = ["every HTTP service endpoint", "every MCP tool exposed via PlausiDen-MCP", "every backend slug declared in backends.toml"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["sec-007 (AI-exposed capabilities declared)", "task #199 MCP tool definitions"]
+
+[[rule]]
+id        = "test-007"
+name      = "Migrations have property tests showing preserve + reject"
+domain    = "testing"
+statement = "Every migration in the migration registry (per backward-compat doctrine) has a property-based test asserting: (a) any valid V_N input produces valid V_(N+1) output, (b) running the migration twice produces the same result as running it once (idempotency), (c) invalid V_N inputs are rejected with a typed error."
+rationale = """
+Migrations run on user data and configuration; bugs in them corrupt
+sites and break operator trust. The property tests verify the
+mathematical invariants the migration claims (preservation,
+idempotency, rejection); concrete failing cases give immediate
+reproductions. Migration without these tests is migration that may
+ship subtle corruption.
+"""
+enforcement = [
+  "loom-lint requires migration trait impls to have associated proptest harness",
+  "forge phase: migration_property_coverage — counts proptest assertions per migration; minimum 3 (preserve / idempotent / reject)",
+  "CI runs migration tests with high case counts (10k+) before merging",
+]
+applies_to    = ["every migration registered in the migration registry (backcompat-v3 / task #139)"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["[[backward-compat-version-discipline]]", "task #139 migration registry"]
+
+[[rule]]
+id        = "test-008"
+name      = "CI runs the LFI-disabled scenario as a permanent test"
+domain    = "testing"
+statement = "Every PR is verified against a CI scenario where LFI integration is disabled (compile-time feature flag OR runtime LFI_FORCE_FAIL=1); the platform must produce equivalent correctness outputs and graceful degradation, with no panics or unhandled errors."
+rationale = """
+The deterministic-first doctrine commits the platform to functioning
+correctly without AI. The commitment is only durable if it's
+continuously verified — without the LFI-disabled CI scenario, regressions
+that introduce AI dependence land silently and accumulate. The scenario
+runs on every PR and on a permanent schedule against main; degradation
+is detected at introduction, not at customer complaint.
+"""
+enforcement = [
+  "CI job: forge-build-no-lfi — builds forge-cli with --no-default-features (or LFI feature flag off), runs full build + audit pipeline against reference fixtures, asserts no errors",
+  "CI job: forge-runtime-lfi-fail — builds normally, runs with LFI_FORCE_FAIL=1 env var, asserts graceful degradation",
+  "Both jobs are blocking on PR merge; both run on every push to main as part of the smoke-test set",
+]
+applies_to    = ["forge-cli build + audit pipeline", "every augmentable capability per determ-v3 (#186)"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["[[deterministic-first-lfi-optional]]", "task #189"]
