@@ -1,0 +1,144 @@
+# Doctrine — Content authoring rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "content"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "content-001"
+name      = "Pages declare density floor by content type"
+domain    = "content"
+statement = "Each CMS content type declares its minimum-viable shape: required section count, minimum word count, required primitive variety (e.g. at least one of: image_hero / split_hero / kicker-and-paragraph). Pages below the floor fail validation."
+rationale = """
+Underspecified content produces thin, generic pages that feel empty
+relative to their declared purpose. Density floors per content type
+force the floor explicitly — a marketing homepage needs more than a
+hero, a 404 page needs less than a feature page. The substrate
+declares the floor; validation refuses pages that fall short. This
+catches the failure mode where authoring tools fill required fields
+with placeholder and ship.
+"""
+enforcement = [
+  "cms-schema.json declares minimum-viable shape per content type",
+  "forge phase: cms_density — measures word count, section count, primitive variety against the floor; fails on shortfall",
+  "loom validate surfaces floor violations at edit time, before publish",
+]
+applies_to    = ["every cms/*.json page", "every CMS content type"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["[[forge-substrate-flexible-product-opinionated]]", "task #109 reference corpus + density tiers"]
+
+[[rule]]
+id        = "content-002"
+name      = "Claims must have sourced attribution or explicit no-source declaration"
+domain    = "content"
+statement = "Any factual claim (statistic, quote, study citation, technical specification, regulatory reference) in CMS content must carry a `source` field with a verifiable reference, OR an explicit `source: 'no-source-needed'` declaration with rationale (e.g. brand voice, internal-only context)."
+rationale = """
+Unsourced claims are a credibility problem and a legal one. A
+statistic without a source can't be verified; if it's wrong, the
+publisher carries the consequence. The discipline is that every
+claim either points to a source or declares why none is needed.
+Editorial review on the no-source-needed case prevents abuse.
+"""
+enforcement = [
+  "cms-schema.json: claim-shaped fields require a source field (URL, citation, or no-source-needed with reason)",
+  "forge phase: claim_attribution_audit — surfaces unsourced claims for editorial review",
+  "publish gate blocks pages with sourceless claims unless reviewer approves the no-source declaration",
+]
+applies_to    = ["every CMS content type with claim-shaped fields (statistic, quote, citation, spec)"]
+severity      = "warn"
+lifecycle     = "experimental"
+references    = ["GDPR Art. 5 'accuracy' principle", "AVP-Doctrine/doctrine/principles.toml"]
+
+[[rule]]
+id        = "content-003"
+name      = "Testimonials are structured with full attribution"
+domain    = "content"
+statement = "Testimonial primitives require typed fields: name, role, organization, optional photo with WCAG-compliant alt text. Anonymous testimonials are permitted only with an explicit `anonymous: true` flag plus rationale; fictional testimonials are forbidden entirely."
+rationale = """
+Generic 'this product changed my life — Sarah K.' testimonials are
+trust-destroying when readers reach for verification. The substrate's
+default is full structured attribution; anonymous is the audited
+exception (e.g. whistleblower protections); fictional is a deception
+that the substrate refuses to render.
+"""
+enforcement = [
+  "loom-cms-render Testimonial section requires the four structured fields at deserialization",
+  "forge phase: testimonial_attribution — checks for placeholder names (John Doe, Jane Smith, Sample Customer) against a curated dictionary",
+  "loom validate rejects testimonials with anonymous = true and missing rationale field",
+]
+applies_to    = ["every Testimonial primitive instance", "every CMS content type embedding testimonials"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["RequiresSourceAttribution"]
+references    = ["FTC Endorsement Guides", "[[forge-substrate-flexible-product-opinionated]]"]
+
+[[rule]]
+id        = "content-004"
+name      = "Statistics carry citation + dataset reference"
+domain    = "content"
+statement = "Numeric statistics in CMS content (stat_band entries, in-paragraph numbers cited as authority, comparison data) require typed citation fields: source organization, dataset URL, year, methodology link."
+rationale = """
+A '70% of users prefer our product' claim is meaningless without
+provenance. The substrate's structured statistic primitive requires
+the citation up front, so reader and audit can both verify. This
+catches the failure mode where marketing copy invents plausible-
+sounding numbers; the substrate refuses to render statistics without
+the citation contract.
+"""
+enforcement = [
+  "loom-cms-render StatBand and Statistic primitives require typed citation fields",
+  "forge phase: statistic_citation_audit — verifies every numeric stat has a citation reachable via the manifest",
+  "URL liveness check (offline-capable: cached HEAD) flags broken citations",
+]
+applies_to    = ["every statistic field in CMS content", "every numeric authority claim"]
+severity      = "warn"
+lifecycle     = "experimental"
+related_traits = ["RequiresSourceAttribution"]
+references    = ["content-002", "FTC Truth-in-Advertising"]
+
+[[rule]]
+id        = "content-005"
+name      = "Technical accuracy claims have explicit reviewer signoff"
+domain    = "content"
+statement = "Content making technical claims (security, performance, regulatory compliance, scientific assertions) carries a typed `technical_review` field identifying the reviewer principal who validated the claim before publish."
+rationale = """
+Technical claims that turn out wrong damage credibility and create
+legal exposure. The discipline is that someone qualified reviewed
+the claim; the substrate records who and when. Publishing without
+review is forbidden for technical-claim content types; the review
+record is part of the content's audit trail.
+"""
+enforcement = [
+  "cms-schema.json declares technical_review required on relevant content types (security claims / performance numbers / regulatory statements)",
+  "forge phase: technical_review_coverage — surfaces unreviewed claims at publish time",
+  "publish gate blocks content with technical claims missing reviewer signoff",
+]
+applies_to    = ["security claim content", "performance benchmark content", "compliance assertion content", "scientific or medical content"]
+severity      = "strict"
+lifecycle     = "experimental"
+related_traits = ["RequiresFactCheck", "AuditLogged"]
+references    = ["sec-006 (state-modifying = AuditLogged)"]
+
+[[rule]]
+id        = "content-006"
+name      = "Accessibility claims have evidence"
+domain    = "content"
+statement = "Sites or capabilities claiming accessibility compliance (WCAG AA, WCAG AAA, ADA Title III, EAA, etc.) must link to evidence: audit report, conformance statement, manual test results, automated audit outputs."
+rationale = """
+Vague accessibility claims (`accessible to all users`) are at best
+aspirational, at worst false-advertising. The discipline is that a
+substrate-declared compliance regime requires evidence; the audit
+phase verifies the evidence is present and not stale.
+"""
+enforcement = [
+  "compliance orientation (#191): a site declaring compliance: WCAG-AA requires audit-report links + audit-phase coverage",
+  "forge phase: accessibility_claim_audit — flags claims of compliance without linked evidence",
+  "Evidence is dated; stale evidence (older than 12 months) emits a freshness warning",
+]
+applies_to    = ["every site declaring accessibility-compliance regimes", "every capability claiming WCAG conformance"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["[[n-orientation-substrate]] compliance orientation", "task #191"]

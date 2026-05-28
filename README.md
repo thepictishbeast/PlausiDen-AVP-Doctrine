@@ -52,6 +52,7 @@ work, gate every commit on [`gates/`](gates/), annotate every line per
 | Folder | Purpose |
 |--------|---------|
 | [`AVP2_PROTOCOL.md`](AVP2_PROTOCOL.md) | The full Adversarial Validation Protocol v2 — the source the rest derives from. |
+| [`SOVEREIGN_POLYGLOT_STACK.md`](SOVEREIGN_POLYGLOT_STACK.md) | Best-language-per-domain reference, sovereignty-weighted. Quarterly review enforced. |
 | [`standing-orders/`](standing-orders/) | What each agent reads at session start. Roles, allowed/forbidden actions, IPC, escalation, stop conditions. |
 | [`gates/`](gates/) | Per-language coding gates that block commits and merges. |
 | [`annotations/`](annotations/) | The inline annotation standard (`BUG ASSUMPTION`, `AVP-PASS-N`, `SAFETY`, `SHIP-DECISION`, …). |

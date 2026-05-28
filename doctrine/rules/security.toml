@@ -1,0 +1,258 @@
+# Doctrine — Security rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "security"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "sec-001"
+name      = "Input validation at every boundary, typed schema, deny_unknown_fields"
+domain    = "security"
+statement = "Every external input (HTTP request, CLI argv, file load, IPC message) must cross a typed schema validator using `serde::Deserialize` with `deny_unknown_fields` set; downstream code may assume the input is valid."
+rationale = """
+Validation at the boundary means every code path below the boundary
+runs against typed, predictable data. The classic class of bugs —
+unexpected fields, malformed shapes, ad-hoc parsing accepting things
+the spec rejects — does not occur because the boundary refuses them
+before they reach the code. `deny_unknown_fields` specifically catches
+the case where a malicious or buggy producer sends extra fields hoping
+the consumer ignores them; the deserializer refuses. The substrate
+trusts only what the type system enforces.
+"""
+enforcement = [
+  "forge phase: schema_boundary_audit — scans every #[derive(Deserialize)] block, fails if deny_unknown_fields is missing on external-input structs",
+  "clippy-level lint flags Value::Object / serde_json::Value passed through code paths instead of typed deserialization",
+  "PR review rejects new HTTP handlers / CLI subcommands / IPC consumers without typed extractors",
+]
+applies_to    = ["forge-cli argv parsing", "every HTTP service endpoint", "every IPC consumer", "every TOML/JSON loader"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Sensitive", "RequiresAuthentication"]
+references    = ["OWASP Input Validation", "[[deterministic-first-lfi-optional]]"]
+
+[[rule]]
+id        = "sec-002"
+name      = "Vetted cryptographic primitives only — no roll-your-own"
+domain    = "security"
+statement = "Cryptographic code must use vetted primitives from the substrate's crypto crates (ed25519-dalek, x25519-dalek, ring, RustCrypto, ML-DSA/ML-KEM via designated wrappers); inventing new primitives or composing them at the application layer is forbidden."
+rationale = """
+Cryptography that looks right but is subtly wrong is the dominant
+source of catastrophic security failures. The substrate uses primitives
+that have been formally analyzed, side-channel tested, and reviewed by
+the cryptographic community. Application code composes them through
+typed wrappers; it does not implement them. This rule is non-negotiable
+because the consequences of violation are not bounded by ordinary
+defensive coding.
+"""
+enforcement = [
+  "loom-lint forbids importing primitive crypto crates outside designated wrapper crates (crucible-crypto, lfi-crypto, etc.)",
+  "forge phase: crypto_provenance_audit — every crypto operation must be reachable from a vetted wrapper crate",
+  "PR review rejects ad-hoc crypto compositions; security-team review required for any change in crypto wrapper crates",
+]
+applies_to    = ["every cryptographic operation in the workspace", "every signature / encryption / hashing call site"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Encrypted", "AuditLogged"]
+references    = ["[[super-society-tech-stack]]", "AVP2_PROTOCOL.md tier 3"]
+
+[[rule]]
+id        = "sec-003"
+name      = "Secrets loaded from secrets manager, never embedded in code or configuration"
+domain    = "security"
+statement = "Secrets (API keys, signing keys, database passwords, OAuth tokens) must be loaded at runtime from the secrets manager (environment-injected via systemd credentials, age-encrypted files, or HSM interface); secrets do not appear in source code, configuration files, build artifacts, or shipped logs."
+rationale = """
+A secret in source code is a secret that has leaked. The git history
+preserves it; the build artifacts embed it; the deploy pipeline copies
+it; the backup system replicates it. The discipline is that secrets
+live in a separate substrate (the secrets manager) that handles
+rotation, audit logging, and access control. Code references the
+secret by name and loads it at runtime from a known interface; the
+secret itself never enters the code path's storage.
+"""
+enforcement = [
+  "forge audit secrets — pattern-matches the workspace for secret-shaped tokens (API key formats, certificate blocks, base64-encoded keys)",
+  "git pre-commit hook (in CONTRIBUTING.md) refuses commits containing secret patterns",
+  "PR review treats any embedded secret as a P0 incident — rotate immediately + audit access logs",
+]
+applies_to    = ["every source file", "every committed config file", "every build artifact", "every shipped log"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Sensitive", "Ephemeral"]
+references    = ["AVP-Doctrine/doctrine/anti-patterns.toml", "OWASP Secrets Management"]
+
+[[rule]]
+id        = "sec-004"
+name      = "Authentication verified at the action boundary, not the UI gate"
+domain    = "security"
+statement = "Every state-modifying or sensitive-data-returning capability must verify authentication and authorization at the action boundary (the server-side handler); UI-level gating (hidden buttons, disabled forms) is decoration, not enforcement."
+rationale = """
+UI hides the surface; servers enforce access. An adversary who bypasses
+the UI (curl, scripted browser, replayed request) hits the server
+directly; if authentication isn't verified at the action boundary,
+the UI-level gating accomplishes nothing. The discipline is that every
+capability that touches state or returns sensitive data verifies the
+caller's identity and authorization independently of how the UI
+constructed the request.
+"""
+enforcement = [
+  "forge phase: auth_boundary_audit — checks every handler in the workspace has explicit auth verification before any state mutation",
+  "manifest-core verifies every capability declared as RequiresAuthentication / RequiresWebAuthn enforces it at the implementation seam",
+  "crawler runtime: auth_bypass_journey — simulated unauthenticated requests to protected endpoints; non-401 responses fail",
+]
+applies_to    = ["every HTTP handler that mutates state", "every API endpoint returning user data", "every IPC capability with auth requirements"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["RequiresAuthentication", "RequiresWebAuthn", "AuditLogged"]
+references    = ["OWASP Broken Access Control", "WCAG 4.1.2 (UI cannot substitute for server enforcement)"]
+
+[[rule]]
+id        = "sec-005"
+name      = "Sensitive trait carries its full sub-contract"
+domain    = "security"
+statement = "A field declared as `Sensitive` automatically inherits and must satisfy the trait dependencies: `Redacted` (logs show ***), `ResistsClipboardCapture` (where applicable), `Ephemeral` (no session persistence), and runtime never includes the value in URLs, error messages, or telemetry."
+rationale = """
+The Sensitive trait isn't a label; it's a contract. A password field
+declared Sensitive but logged unredacted in error messages defeats the
+declaration. The substrate's typed trait composition makes the full
+contract mandatory: declaring Sensitive means the substrate refuses
+to ship a primitive that doesn't satisfy every sub-trait. The discipline
+is that 'sensitive' means the full posture, not just the label.
+"""
+enforcement = [
+  "forge phase: sensitive_trait_audit — scans the build output for sensitive values appearing in URL parameters, error messages, telemetry, or unredacted logs",
+  "trait system enforces dependency: implementing Sensitive without implementing Redacted + ResistsClipboardCapture + Ephemeral fails type check",
+  "crawler runtime: sensitive_leak_journey — interacts with sensitive forms + inspects client-side state for redaction",
+]
+applies_to    = ["every primitive declaring Sensitive", "every CMS content type carrying sensitive fields"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Sensitive", "Redacted", "ResistsClipboardCapture", "Ephemeral"]
+references    = ["[[substrate-traits-and-doctrine]] Part 1", "GDPR Art. 32 'appropriate technical and organisational measures'"]
+
+[[rule]]
+id        = "sec-006"
+name      = "State-modifying capabilities are AuditLogged"
+domain    = "security"
+statement = "Every capability that mutates platform state (creates / updates / deletes records, sends emails, publishes content, changes configuration) declares the AuditLogged trait; the audit log entries are hash-chained per observability-core's AuditChain."
+rationale = """
+Mutations without audit logs are mutations without accountability. The
+substrate's audit log is the system's memory of who did what and when;
+it has to exist for every state change or the record is incomplete.
+Hash-chaining the audit log (existing observability-core T91) makes
+the log itself tamper-evident — quietly altering a past entry breaks
+the chain.
+"""
+enforcement = [
+  "manifest-core T33 + T91 audit-log gate verify every state-mutating capability declares AuditLogged",
+  "forge phase: audit_log_coverage — fails if any handler declared in capabilities.toml mutates state without writing an AuditChain entry",
+  "forge audit-log <chain.json> verifies chain integrity post-deploy",
+]
+applies_to    = ["every Rust function declared `mut` on a substrate handle", "every CMS publish / unpublish action", "every config-toml-write capability"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["AuditLogged"]
+references    = ["observability-core T91 AuditChain", "build-005 (Merkle chain reproducibility)"]
+
+[[rule]]
+id        = "sec-007"
+name      = "AI-exposed capabilities are explicitly declared in the manifest with permission requirements"
+domain    = "security"
+statement = "Any capability accessible to an AI agent (Claude, Gemini, or other) must be declared in `capabilities.toml` with explicit `ai_accessible = true`, the required principal class (`human` / `ai_with_approval` / `ai_autonomous`), and the audit-log requirement."
+rationale = """
+AI agents can invoke capabilities at higher rate and at unexpected
+times than human users. Capabilities exposed to AI without explicit
+declaration become attack surface: an AI agent (or a prompt-injection
+attack against an AI agent) can invoke them without the audit posture
+the operator intended. The discipline is that AI access is an opt-in
+declaration on the capability, not a default; AI agents that try to
+invoke capabilities not declared `ai_accessible` receive a refusal at
+the capability gate.
+"""
+enforcement = [
+  "manifest-core verifies every capability invoked via MCP / SDK has the ai_accessible declaration",
+  "forge phase: ai_capability_audit — runs the manifest against the codebase, flags missing declarations",
+  "MCP gateway refuses invocations from AI principal classes not on the capability's allowlist",
+]
+applies_to    = ["every MCP tool definition", "every capability invokable via SDK", "every backend slug in backends.toml"]
+severity      = "strict"
+lifecycle     = "experimental"
+related_traits = ["RequiresHumanInTheLoop"]
+references    = ["[[priority-architectural-first-and-cross-ai]]", "task #199 MCP tool definitions"]
+
+[[rule]]
+id        = "sec-008"
+name      = "Rate limiting at the capability boundary"
+domain    = "security"
+statement = "Every public-facing capability declares its rate limits (per principal, per IP, global) in the manifest; the substrate enforces them at the action boundary independently of UI-level rate visualization."
+rationale = """
+Rate limiting at the UI is decoration; rate limiting at the action
+boundary is enforcement. Without it, a scripted adversary, a buggy
+client, or a misconfigured retry loop can exhaust the platform's
+capacity, leak secrets via brute force (sec-009), or denial-of-service
+both intentionally and accidentally. The discipline is that every
+public capability declares its rate-limit contract and the substrate
+enforces it; the UI presentation follows from the contract, not the
+reverse.
+"""
+enforcement = [
+  "manifest-core verifies every public-facing capability has a rate-limit declaration",
+  "forge phase: rate_limit_coverage — fails if a public handler is missing rate-limit middleware in its impl seam",
+  "crawler runtime: rate_limit_journey — invokes capabilities at high frequency, asserts 429 response after threshold",
+]
+applies_to    = ["every HTTP handler", "every IPC endpoint exposed to external principals", "every public MCP tool"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["RateLimited"]
+references    = ["OWASP API Security Top 10 #4"]
+
+[[rule]]
+id        = "sec-009"
+name      = "Constant-time comparison for authentication / signature paths"
+domain    = "security"
+statement = "Comparing secrets, MACs, signatures, or session tokens must use constant-time comparison (subtle::ConstantTimeEq or equivalent); early-return string comparisons are forbidden in auth paths."
+rationale = """
+Variable-time comparison leaks the position of the first byte mismatch
+through timing side-channels. With network access, an attacker can
+recover a secret byte by byte. Constant-time comparison eliminates the
+side-channel by running the same operations regardless of where the
+mismatch occurs. The substrate's auth, MAC, signature, and session-
+token paths must use constant-time primitives without exception.
+"""
+enforcement = [
+  "loom-lint flags use of == or .eq() on Vec<u8> / [u8; N] / &str inside crypto / auth modules",
+  "forge phase: constant_time_comparison_audit — pattern-matches the workspace for == on secret-shaped variable names (token, mac, signature, session_id, etc.)",
+  "security-team review on any PR touching subtle:: imports — confirm correct usage",
+]
+applies_to    = ["forge-cli auth surface", "every *-core crate handling tokens / sessions / MACs"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Sensitive", "RequiresAuthentication"]
+references    = ["CWE-208 Observable Timing Discrepancy", "subtle crate"]
+
+[[rule]]
+id        = "sec-010"
+name      = "CSP / CORS / HSTS / SRI declared and verified"
+domain    = "security"
+statement = "Every site declares its Content Security Policy, CORS allowlist, HSTS posture (preload-eligible), and Subresource Integrity strategy; the substrate verifies emission and enforces values."
+rationale = """
+The HTTP-security headers are the floor of browser-side enforcement.
+A site without CSP accepts inline scripts and any-origin imports; a
+site without HSTS is vulnerable to first-visit downgrade; a site
+without SRI lets a compromised CDN swap script content. The substrate's
+defaults are aggressive (CSP allowlist, HSTS preload-eligible, SRI
+on every external asset); operators can declare exceptions per route
+with justification, but the defaults must apply unless explicitly
+modified.
+"""
+enforcement = [
+  "forge phases: csp, sri, hsts (already implemented) — verify headers and SRI hashes on every emitted page",
+  "domains-core T91 verifies HSTS posture is preload-eligible (max-age ≥ 31536000 + includeSubDomains + preload)",
+  "forge audit external_assets — refuses external script/style references without SRI hash + allowlist entry",
+]
+applies_to    = ["every emitted HTML page", "every site's domains.toml"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Sensitive"]
+references    = ["MDN Content Security Policy", "RFC 6797 HSTS", "W3C Subresource Integrity", "RFC 8555 §8.4 (DNS-01 for wildcards)"]

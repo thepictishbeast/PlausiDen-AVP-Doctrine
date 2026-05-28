@@ -1,0 +1,189 @@
+# Doctrine — Performance rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "perf"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "perf-001"
+name      = "Every primitive declares its performance budget"
+domain    = "perf"
+statement = "Each Loom primitive declares `build_time_ms`, `render_time_ms`, `memory_kb`, `network_kb`, and `interaction_complexity` in its manifest entry; the substrate aggregates these for pages and sites."
+rationale = """
+A primitive without a budget can compound silently — a hero that
+takes 200ms to render becomes a deal-breaker when it's used on every
+page of a 1000-page site. Budgets force the author to think about
+the cost up front; aggregation surfaces the total cost; budget
+violations surface during build. This is the substrate's mechanism
+for keeping the platform fast as primitives proliferate.
+"""
+enforcement = [
+  "manifest-core verifies every primitive declaration includes the five budget fields",
+  "forge phase: perf_budget — aggregates per-primitive budgets to page-level + site-level totals, fails on tier-limit violations",
+  "tier_budgets.toml (per resource-orientation, task #194) declares per-tier maximums for build / page / interaction",
+]
+applies_to    = ["every loom-components primitive", "every loom-cms-render CmsSection variant"]
+severity      = "strict"
+lifecycle     = "experimental"
+related_traits = ["MobileFriendly"]
+references    = ["[[n-orientation-substrate]] resource orientation", "task #194"]
+
+[[rule]]
+id        = "perf-002"
+name      = "Every page passes Core Web Vitals targets"
+domain    = "perf"
+statement = "Generated pages must pass: LCP (Largest Contentful Paint) ≤ 2500 ms, INP (Interaction to Next Paint) ≤ 200 ms, CLS (Cumulative Layout Shift) ≤ 0.1 at the 75th percentile across declared viewports."
+rationale = """
+Core Web Vitals are Google's stated good-experience thresholds — they
+correlate with user satisfaction, bounce rate, and SEO ranking. Pages
+that fail them produce measurable harm. The thresholds are the floor;
+the substrate's commitment is that every page clears them by default,
+and exceptions are tracked.
+"""
+enforcement = [
+  "forge phase: web_vitals — runs lighthouse/lab measurements as part of the build; fails on any vital exceeding threshold",
+  "crawler runtime: cwv_journey — real-browser measurement at each declared viewport; field data captured per route",
+  "operator-facing dashboard surfaces CWV per page per build",
+]
+applies_to    = ["every emitted HTML page", "every Forge build in production mode"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["MobileFriendly", "RespectsReducedMotion"]
+references    = ["web.dev Core Web Vitals", "WCAG 2.2.1 timing"]
+
+[[rule]]
+id        = "perf-003"
+name      = "Forge build time budget"
+domain    = "perf"
+statement = "A full Forge build of a reference site (cms/*.json + static/) must complete in ≤ 30 s on the reference hardware (warm cargo cache) and ≤ 5 minutes cold; any phase taking > 5 s is flagged."
+rationale = """
+Slow builds break the iteration loop. An operator who waits minutes
+for feedback after every CMS edit gives up; an AI agent that has to
+budget multi-minute build cycles into its planning is much less
+effective. The discipline is that build time is a substrate-level
+budget; phases that bloat it get optimized or have their bloat
+justified.
+"""
+enforcement = [
+  "forge build emits per-phase timing in the report; CI tracks build time over time",
+  "perf phase: build_time_audit — warns on individual phase > 5 s, fails on total > 30 s warm / 5 min cold",
+  "regressions in build time block merge until justified or optimized",
+]
+applies_to    = ["forge-cli build pipeline", "every Forge phase"]
+severity      = "warn"
+lifecycle     = "stable"
+references    = ["forge.toml [profile.release] opt-level=3 / lto / codegen-units=1"]
+
+[[rule]]
+id        = "perf-004"
+name      = "JS bundle KB budget per primitive"
+domain    = "perf"
+statement = "Each JS-emitting primitive declares its KB budget (compressed bytes shipped to the browser); the substrate aggregates per-page totals; per-page JS payload must stay within tier-declared limits."
+rationale = """
+JavaScript is the single biggest contributor to LCP regressions and
+mobile UX harm. A primitive that ships 50 KB of JS used on every
+page silently inflates every page's payload. Budgets force the
+author to declare and justify; aggregation surfaces the page total;
+violations block ship.
+"""
+enforcement = [
+  "manifest-core verifies every JS-emitting primitive declares its budget",
+  "forge phase: js_budget — aggregates per-primitive budgets to page-level totals, fails on tier-limit violations",
+  "build emits Brotli + gzip + identity sizes for the JS payload per page",
+]
+applies_to    = ["every primitive declaring JS emission", "every page's aggregated JS bundle"]
+severity      = "strict"
+lifecycle     = "experimental"
+related_traits = ["WorksWithoutJS"]
+references    = ["prim-005 (works without JS)", "perf-001 (per-primitive budgets)"]
+
+[[rule]]
+id        = "perf-005"
+name      = "Every image goes through the asset pipeline"
+domain    = "perf"
+statement = "Images emitted by the substrate must come from the assets-core asset pipeline (AVIF / WebP / JPEG fallback ladder with srcset, dimensions, alt text); no `<img src=...>` bypass."
+rationale = """
+Raw images without modern formats, srcset, or proper dimensions
+inflate page weight 5-10x and produce CLS during load. The asset
+pipeline (existing assets-core T80) handles the ladder, dimensions,
+alt-text enforcement (WCAG 2.1 §1.1.1); using it is mechanical
+because the pipeline does the work.
+"""
+enforcement = [
+  "forge phase: asset_pipeline_audit — refuses raw <img> tags emitted outside the assets-core wrapper",
+  "loom-cms-render Figure primitive routes through assets-core for AVIF / WebP / JPEG fallback",
+  "forge audit modern_image_formats verifies emitted images include the ladder",
+]
+applies_to    = ["every image emission path", "every Loom primitive with image slots"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["WCAG 2.1 §1.1.1", "assets-core T80"]
+
+[[rule]]
+id        = "perf-006"
+name      = "Every font is subsetted to required glyphs"
+domain    = "perf"
+statement = "Font files emitted by the substrate are subsetted to the glyph ranges actually used on the page; full Unicode font fallback only via the system stack."
+rationale = """
+A full Inter font is ~300 KB; a Latin subset is ~30 KB. Shipping the
+full font for a page that uses 200 glyphs wastes ~270 KB on every
+load. The asset pipeline subsets fonts based on the rendered text +
+declared system-language coverage; the substrate refuses to ship
+un-subsetted fonts.
+"""
+enforcement = [
+  "forge phase: font_loading_audit — detects un-subsetted font emissions, fails build",
+  "assets-core T80 produces subsets at build time from the rendered text corpus",
+  "operator-declared expanded subsets (e.g. Cyrillic + Latin for multi-language) supported via theme declarations",
+]
+applies_to    = ["every emitted font file", "every Loom theme with custom font declarations"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["perf-002 (Core Web Vitals)", "WCAG 1.4.4 resize text"]
+
+[[rule]]
+id        = "perf-007"
+name      = "Per-tier total page budgets"
+domain    = "perf"
+statement = "Free-tier pages have total render budget X (HTML + CSS + JS + first-contentful-image, compressed bytes), Pro tier 2X, Enterprise 5X (custom); the substrate refuses to deploy pages exceeding their tier's budget."
+rationale = """
+Without tier-conditional budgets, every page is a single budget that's
+either too generous (allows abuse) or too tight (constrains paying
+tenants). Tier-conditional budgets align resource consumption with
+billing and prevent one tenant's heavy pages from monopolizing shared
+infrastructure. The discipline connects substrate behavior to commercial
+boundaries.
+"""
+enforcement = [
+  "tier_budgets.toml (task #194 — resource orientation) declares each tier's limits",
+  "forge phase: tier_budget — aggregates page resource consumption, fails deploy if over tier limit",
+  "operator UI surfaces budget usage relative to tier; warnings before exhaustion",
+]
+applies_to    = ["every deployed page", "every tenant's site bundle"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["task #194 Resource orientation", "perf-001 / perf-004 (per-primitive budgets aggregate to per-page)"]
+
+[[rule]]
+id        = "perf-008"
+name      = "CSS size budget per primitive + per page"
+domain    = "perf"
+statement = "Per-primitive CSS additions to skin.css have a declared KB budget; per-page rendered CSS (rules actually used) stays within tier-declared limits via tree-shaking + critical-path extraction."
+rationale = """
+skin.css already exceeds 300 KB and grows with each primitive. Without
+budgets and tree-shaking, every page ships the full library even when
+it uses 3 primitives. The discipline is per-primitive budgets (so new
+primitives are intentionally compact) + critical-path extraction (so
+shipped CSS matches actual usage).
+"""
+enforcement = [
+  "loom-tokens build emits the per-primitive CSS delta; budget violations fail",
+  "forge phase: css_size_audit — measures critical-path CSS per page, fails on tier-budget violation",
+  "loom-fallback.css + loom-critical.css split per page so above-fold rules ship inline + rest async",
+]
+applies_to    = ["loom-tokens/src/skin.css", "every page's rendered critical CSS"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["perf-002 (CWV)", "prim-006 (no raw classes — eases tree-shaking)"]

@@ -1,0 +1,288 @@
+# Doctrine — Loom primitive authoring rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "primitives"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "prim-001"
+name      = "Default-required traits on every primitive"
+domain    = "primitives"
+statement = "Every Loom primitive must satisfy MobileFriendly, RTLAware, RespectsReducedMotion, and ThemeAware traits."
+rationale = """
+These four traits encode the substrate's platform commitments — the
+floor of behavior every primitive must clear. Mobile is the primary
+access pattern for many users; RTL is required for accurate i18n;
+reduced-motion respects accessibility preferences; theme-awareness is
+how the substrate accommodates dark/light/custom palettes. A primitive
+failing any of these produces sites that fail their audience along that
+axis. The defaults are not configurable down — additional traits can
+be layered on, but these four are the contract.
+"""
+enforcement = [
+  "forge phase: primitive_default_traits — checks every primitive's manifest declaration includes the four required traits",
+  "trait-specific Forge phases (mobile_friendly_audit / rtl_aware_audit / reduced_motion_audit / theme_aware_audit) verify each contract",
+  "loom-lint refuses to ship a primitive whose manifest omits any of the four",
+]
+applies_to    = ["loom-cms-render", "loom-components", "every primitive crate"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["MobileFriendly", "RTLAware", "RespectsReducedMotion", "ThemeAware"]
+references    = ["WCAG 2.5.5 AAA", "WCAG 2.3.3", "[[substrate-traits-and-doctrine]]"]
+
+[[rule]]
+id        = "prim-002"
+name      = "Variants are enums, never strings"
+domain    = "primitives"
+statement = "A primitive variant set must be expressed as a closed Rust enum, not a Vec<String> or open-ended String prop."
+rationale = """
+Open variant strings produce silent typos, drifting implementations,
+and unverifiable matrixes. A closed enum lets the compiler enforce
+that every variant is handled, every variant has a declared style,
+and removing a variant is a deliberate API change visible in diffs.
+This is the typed-substrate discipline applied to UI composition.
+"""
+enforcement = [
+  "loom-lint refuses code declaring variant: String or variant: Vec<String> on a CmsSection field",
+  "manifest-core T33 gate verifies primitive variant declarations match the enum source",
+  "PR review rejects open-string variants with pointer to enum migration pattern",
+]
+applies_to    = ["loom-cms-render::CmsSection", "loom-components Component traits"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["PlausiDen-Loom/CLAUDE.md hard rule 3"]
+
+[[rule]]
+id        = "prim-003"
+name      = "Logical CSS properties only"
+domain    = "primitives"
+statement = "Primitive CSS must use logical properties (inline-start, block-end, padding-inline, margin-block, …) instead of directional properties (left, right, padding-left, margin-top)."
+rationale = """
+Logical properties mirror automatically under writing-mode and
+direction changes. Directional properties bake left-to-right
+assumptions into the primitive and break RTL rendering. Modern
+browsers support logical properties cleanly; using them by default
+keeps the substrate RTL-correct without per-primitive special cases.
+"""
+enforcement = [
+  "forge phase: logical_css_audit — pattern-matches skin.css and inline styles for directional properties",
+  "loom-lint refuses raw 'left:', 'right:', 'padding-left:', 'margin-top:' etc. outside justified exceptions",
+  "exceptions (e.g. compatibility with a specific older browser) require // DOCTRINE-EXCEPTION inline tag",
+]
+applies_to    = ["loom-tokens/src/skin.css", "loom-cms-render emission paths", "all primitive CSS"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["RTLAware"]
+references    = ["MDN: CSS Logical Properties and Values Level 1"]
+
+[[rule]]
+id        = "prim-004"
+name      = "Container queries, not viewport queries (default)"
+domain    = "primitives"
+statement = "Primitive responsive behavior uses CSS container queries (@container) keyed on the primitive's parent container; viewport queries (@media (min-width: …)) are permitted only at the page-shell level."
+rationale = """
+A primitive's responsive behavior should depend on the space it's
+allocated, not on the viewport. The same primitive may appear in a
+narrow sidebar, a wide hero, or a column within a grid — the right
+breakpoint depends on the local container, not the screen. Viewport
+queries leak page-shell concerns into primitive code and produce
+primitives that look wrong when reused in unexpected contexts.
+"""
+enforcement = [
+  "forge phase: container_query_audit — scans primitive CSS for @media usage outside loom-shell.css",
+  "loom-lint flags @media in primitive CSS, requires moving to @container or escalating to page-shell with justification",
+]
+applies_to    = ["every primitive CSS block in skin.css", "loom-components style emissions"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["MobileFriendly"]
+references    = ["MDN: Container Queries", "CSS Containment Module Level 3"]
+
+[[rule]]
+id        = "prim-005"
+name      = "Works without JavaScript (graceful degradation)"
+domain    = "primitives"
+statement = "Every primitive must render and be usable when JavaScript is disabled; interactive enhancement is additive, not foundational."
+rationale = """
+Universal access depends on no-JS rendering: privacy-conscious users
+disable JS; older devices time-out on heavy bundles; corporate networks
+block third-party scripts that primitives might rely on; Tor users
+ride safer with JS off. A primitive that requires JS to function
+excludes these audiences silently. The substrate's commitment is that
+content is accessible regardless of JS availability; interactivity is
+a layer on top.
+"""
+enforcement = [
+  "crawler runtime: no_js_journey — navigates with JS disabled, asserts every primitive's content is visible + usable",
+  "forge phase: noscript_strict — verifies every interactive primitive has a <noscript> fallback or equivalent server-side behavior",
+  "loom-lint requires explicit JsRequired trait declaration on any primitive that truly cannot work without JS (heavyweight, audited)",
+]
+applies_to    = ["every interactive Loom primitive", "every CMS content type that depends on client behavior"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["WorksWithoutJS"]
+references    = ["[[super-society-tech-stack]]"]
+
+[[rule]]
+id        = "prim-006"
+name      = "No raw class strings outside loom-components"
+domain    = "primitives"
+statement = "Site repos and Forge build phases may not emit raw class strings; all styling flows through Loom typed primitives with constrained variant enums."
+rationale = """
+Raw class strings are a substrate-bypass — they let callers inject
+styling that hasn't been audited for token-correctness, a11y, theme
+support, or any of the other trait contracts. The discipline is that
+every styling decision lives in a typed primitive's variant enum;
+adding a new visual case means adding a new variant, not a new
+class string. This is what makes the substrate auditable.
+"""
+enforcement = [
+  "loom-lint walks every *.rs view file, refuses raw class= strings outside loom-components allowlist",
+  "forge phase: render — refuses to emit <element class=\"raw\"> markup unless the class is loom-prefixed and registered",
+  "PR review rejects extra_classes-style overrides without substrate-extension justification",
+]
+applies_to    = ["every site repo", "every Forge phase that emits HTML", "every loom-components consumer"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["PlausiDen-Loom/CLAUDE.md hard rule 1", "[[substrate-only-path]]"]
+
+[[rule]]
+id        = "prim-007"
+name      = "No magic numbers in spacing, color, font-size, or radius"
+domain    = "primitives"
+statement = "Primitive CSS must use loom-tokens variables (--loom-space-*, --loom-color-*, --loom-font-size-*, --loom-radius-*) and never raw px/rem/hex/rgb/hsl values."
+rationale = """
+Magic numbers fragment the design system. A primitive declaring
+padding: 17px makes that primitive look different than every other
+primitive's padding because no other primitive uses 17px. Tokens are
+the single source of truth for spacing/color/typography/radius; using
+them ensures consistency, themability, and accessibility (e.g. all
+text scales together when the user adjusts root font size).
+"""
+enforcement = [
+  "forge phase: tokens — pattern-matches CSS for raw px/em/rem/hex/rgb/hsl values; emits strict findings",
+  "tokens phase is in the load-bearing gate set (strict_tokens_only = true in forge.toml — NEVER suppressed)",
+  "loom-lint refuses primitive CSS that hardcodes spacing/color values outside the token vocabulary",
+]
+applies_to    = ["loom-tokens/src/skin.css", "every primitive CSS block", "every site override file (if any)"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["PlausiDen-Loom/CLAUDE.md hard rule 2", "forge.toml [poc].strict_tokens_only"]
+
+[[rule]]
+id        = "prim-008"
+name      = "Accessible-name slot on every interactive primitive"
+domain    = "primitives"
+statement = "Every primitive declared as Interactive must have a typed accessible-name slot — aria-label, aria-labelledby, or rendered text content — declared in its variant enum."
+rationale = """
+Forgetting accessible names is the single most common WCAG failure.
+Making the slot typed and required means a primitive cannot be
+constructed without an accessible name; the compiler refuses to ship
+the broken case. This is the substrate version of the WCAG 4.1.2
+Name/Role/Value criterion enforced at compile time, not at audit time.
+"""
+enforcement = [
+  "loom-components: Button / Link / Tab / etc. trait impls require an accessible_name parameter at construction",
+  "forge phase: label_consistency — verifies every interactive emits accessible name in rendered HTML",
+  "crawler runtime: screen_reader_journey — every interactive element addressable by Aria APIs",
+]
+applies_to    = ["every Interactive primitive (Button, Link, Tab, Toggle, Disclosure, …)"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["Interactive", "Focusable", "KeyboardOperable", "ScreenReaderAccessible"]
+references    = ["WCAG 2.1 SC 4.1.2", "PlausiDen-Loom/CLAUDE.md hard rule 5"]
+
+[[rule]]
+id        = "prim-009"
+name      = "Default left-aligned, centered opt-in (consumer-shape de-defaulting)"
+domain    = "primitives"
+statement = "Primitives that can be aligned default to start-align (left in LTR, right in RTL); centered alignment is opt-in via an explicit Align::Center variant or --centered modifier class."
+rationale = """
+Centered-everything is the SaaS-marketing default that produces
+indistinguishable sites. Editorial and information-dense composition
+defaults to start-aligned text and asymmetric layout. The substrate's
+default should be the editorial shape; centered is the special case
+that callers explicitly opt into. This reverses the consumer-shaping
+bias that makes generic SaaS sites blur together.
+"""
+enforcement = [
+  "forge phase: consumer_shape_audit — flags primitives whose default CSS includes text-align: center / justify-content: center without an opt-out variant",
+  "manifest-core verifies every alignable primitive declares an Align enum with Start as default and Center as opt-in",
+  "AGENTS.md anti-pattern entry: ❌ 'add text-align: center to a new primitive's default CSS'",
+]
+applies_to    = ["hero / cta / heading / pricing / stat_band / feature_spotlight / testimonial / logo_cloud / any primitive with positional layout"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["[[forge-substrate-flexible-product-opinionated]]", "[[forge-architectural-meta-principle]]"]
+
+[[rule]]
+id        = "prim-010"
+name      = "Every primitive has a visual regression baseline"
+domain    = "primitives"
+statement = "Every primitive must ship with at least one visual regression test fixture rendered at 390 / 768 / 1280 px, captured into the repository, compared on every PR."
+rationale = """
+Visual regression catches unintentional appearance changes that
+unit tests and lint rules miss. A primitive without a baseline is
+a primitive that can drift visually without detection — and visual
+drift is what produces sites that feel inconsistent over time. The
+baseline is part of the primitive's contract; introducing the primitive
+includes capturing the baseline.
+"""
+enforcement = [
+  "forge phase: visual_regression — diffs every primitive's current render against its baseline; non-zero pixel diff = finding",
+  "loom-audit (T46+ — pending) provides the baseline capture + diff CLI",
+  "CI rejects PRs introducing a new primitive without baseline fixtures",
+]
+applies_to    = ["every loom-components primitive", "every loom-cms-render CmsSection variant"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["PlausiDen-Loom/CLAUDE.md hard rule 4", "task #149 SKILL: adding a primitive"]
+
+[[rule]]
+id        = "prim-011"
+name      = "Accessibility fixtures required per primitive"
+domain    = "primitives"
+statement = "Every primitive must ship with a11y fixtures covering keyboard navigation paths, screen-reader semantic structure, and color-contrast spot checks against declared themes."
+rationale = """
+Accessibility is not auditable post-hoc cheaply; missing a11y is
+typically discovered after a site ships. The fixtures pin the
+accessible behavior at primitive-introduction time, so any future
+change that breaks a11y is detected as a fixture diff. The fixtures
+are typed (keyboard journey, semantic tree, contrast measurements);
+they're not freeform reports.
+"""
+enforcement = [
+  "forge phase: a11y_landmarks + label_consistency + offscreen_focusable — verifies the fixture states",
+  "crawler runtime: keyboard_journey + screen_reader_journey — exercises every primitive's interactive paths",
+  "loom-audit baseline captures contrast measurements per theme",
+]
+applies_to    = ["every interactive primitive", "every primitive with declared color slots"]
+severity      = "strict"
+lifecycle     = "experimental"
+related_traits = ["Focusable", "KeyboardOperable", "ScreenReaderAccessible"]
+references    = ["WCAG 2.1 AA targets", "[[plausiden-design-premium]]"]
+
+[[rule]]
+id        = "prim-012"
+name      = "No site-specific primitives; everything generalizes"
+domain    = "primitives"
+statement = "Primitives in loom-components and loom-cms-render must be substrate-general; site-specific compositions live in the site's CMS content, not as new primitives."
+rationale = """
+A 'ProsperityClubHero' or 'SkillShotsLeaderboard' primitive is a
+substrate-bypass that compounds: every site contributes its own
+'just-this-one-site' primitives, the substrate stays small, and reuse
+across sites becomes impossible. The discipline is that primitives
+are general (HeroVariant with slots that accept any content) and
+site-specificity lives in the content that fills the slots.
+"""
+enforcement = [
+  "loom-lint refuses primitive names containing a site identifier (e.g. 'ProsperityClub*', 'Sacred*', 'SkillShots*')",
+  "PR review rejects new primitives whose use case is a single site; the right path is to generalize and use CMS content",
+  "forge audit cross_site_reuse — flags primitives used in fewer than 2 sites after 90 days",
+]
+applies_to    = ["loom-components", "loom-cms-render", "every primitive crate"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["[[substrate-only-path]]", "[[crawler-stays-general-purpose]]"]

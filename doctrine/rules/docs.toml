@@ -1,0 +1,193 @@
+# Doctrine — Documentation rules.
+# Schema: doctrine/rules/SCHEMA.md.
+
+[meta]
+doctrine_version = "1.0"
+domain = "docs"
+last_reviewed = "2026-05-20"
+
+[[rule]]
+id        = "docs-001"
+name      = "Every primitive doc covers traits + a11y + theme + mobile + RTL + perf + security"
+domain    = "docs"
+statement = "Each Loom primitive's rendered documentation must include: declared traits + their contracts, accessibility behavior (keyboard / screen-reader / contrast), theme rendering across declared themes, mobile-viewport behavior, RTL behavior, performance characteristics (render time / bundle KB / interaction complexity), and security characteristics (Sensitive sub-traits if applicable)."
+rationale = """
+A primitive's public surface is its visual and behavioral contract.
+Docs that omit any axis force consumers to discover the missing
+information by experiment, which is how silent regressions happen.
+Each axis is also one the substrate enforces (traits, a11y phases,
+theme audit, mobile_friendly_audit, rtl_aware_audit, perf budget,
+sensitive_trait_audit), so the docs reflect what the substrate
+already knows.
+"""
+enforcement = [
+  "doc generator (per trait-v7 / task #172) reads each primitive's manifest declaration and produces the full doc page from typed metadata",
+  "forge phase: primitive_doc_coverage — fails build if a primitive's generated doc is missing any required section",
+  "PR review on new primitives explicitly checks the generated doc preview",
+]
+applies_to    = ["every loom-components primitive", "every loom-cms-render CmsSection variant"]
+severity      = "strict"
+lifecycle     = "stable"
+related_traits = ["all"]
+references    = ["[[substrate-traits-and-doctrine]] Part 1 (docs requirement on each trait)", "task #172"]
+
+[[rule]]
+id        = "docs-002"
+name      = "Every Forge phase doc covers inputs + outputs + findings + severity + rationale"
+domain    = "docs"
+statement = "Each Forge phase's rustdoc / module-level documentation must state: required BuildCtx inputs, emitted Finding kinds with their fields, severity classification per kind, and the rationale for the rule(s) the phase enforces (cross-referenced to DOCTRINE rule IDs)."
+rationale = """
+A phase is mystery infrastructure if its findings reach an operator
+who doesn't know what triggered them. The doc surface establishes the
+contract: this phase reads X, emits Y findings of Z kinds, enforcing
+doctrine rule N. The connection from finding → phase → rationale → rule
+makes the build's output legible to humans and AI agents alike.
+"""
+enforcement = [
+  "rustdoc on the phase module: clippy::missing_docs_in_private_items + missing_docs at error level for forge-phases",
+  "forge phase: phase_doc_coverage — fails if any phase's module doc is missing inputs/outputs/findings sections",
+  "CI cross-references doc-declared Finding kinds against the actual Finding emission in code",
+]
+applies_to    = ["forge-phases (every module)", "every future external phase crate"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["build-002 (phase declares inputs/outputs)", "doctrine-v5 (Forge findings cite rules)"]
+
+[[rule]]
+id        = "docs-003"
+name      = "Every doctrine rule has its triple complete"
+domain    = "docs"
+statement = "Every entry in `doctrine/rules/<domain>.toml` must include `statement` (precise sentence), `rationale` (why), and `enforcement` (how verified — list of mechanisms naming specific Forge phases / Crawler axes / lints / schema checks)."
+rationale = """
+A rule with statement but no rationale becomes cargo-cult — future
+contributors don't know why it exists, can't judge edge cases, are
+tempted to bypass it. A rule with statement but no enforcement is a
+wish — there's no verification it's followed. The triple is the
+minimum non-negotiable shape that makes a rule operational.
+"""
+enforcement = [
+  "doctrine-core parser (task #174 — PENDING) fails CI on any rule missing rationale or enforcement",
+  "doctrine query --domain X surfaces only well-formed rules",
+  "PR review on doctrine changes rejects rules without all three fields",
+]
+applies_to    = ["doctrine/rules/*.toml — every rule file"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["doctrine/rules/SCHEMA.md", "task #174 parser"]
+
+[[rule]]
+id        = "docs-004"
+name      = "Every architectural decision has an ADR"
+domain    = "docs"
+statement = "Any decision that constrains the substrate's future (choice of library, choice of architecture, tradeoff acceptance, declared anti-goal) is recorded as an Architectural Decision Record at `docs/adr/NNN-<slug>.md` with the Michael Nygard format: context, decision, status, consequences."
+rationale = """
+Decisions made implicitly become assumptions that future contributors
+must re-derive. ADRs make the decision explicit: here is what we
+considered, here is what we chose, here is the consequence. New
+contributors and AI agents read the ADR set to understand why the
+substrate looks the way it does; they don't have to reverse-engineer
+from code.
+"""
+enforcement = [
+  "forge phase: adr_coverage — when canonical defaults are added/removed/changed (e.g. switching HTTP framework), ADR is required in the same PR",
+  "PR review for substrate-affecting decisions explicitly asks 'does this need an ADR?'",
+  "CHANGELOG.toml entries reference the ADR for decisions that shaped them",
+]
+applies_to    = ["docs/adr/ in PlausiDen-Forge, PlausiDen-Loom, PlausiDen-Doctrine"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["Michael Nygard 'Documenting Architecture Decisions'", "SUBSTRATE_DISCIPLINE.md canonical defaults"]
+
+[[rule]]
+id        = "docs-005"
+name      = "Every breaking change has a migration guide"
+domain    = "docs"
+statement = "Any major-version bump (per [[backward-compat-version-discipline]] semver) ships with a migration guide at `docs/migrations/v<N>-to-v<N+1>.md` covering: what changed, why it changed, how to migrate (manual steps + automated migration commands), what fails closed if not migrated."
+rationale = """
+Major version bumps break things; consumers need a clear path forward
+or they stay on the old version forever and the substrate accumulates
+dead branches. The migration guide is the operator's instruction sheet:
+running the migration tool, verifying the result, what to do if
+something is unexpected. Without it, every operator re-derives the
+migration in private and the substrate appears hostile to upgrades.
+"""
+enforcement = [
+  "CHANGELOG.toml CI rule: major-version entry requires accompanying migration guide path",
+  "doctrine v6 lifecycle (task #178) verifies deprecated→removed transitions reference a migration guide",
+  "doc generator surfaces the migration guide at every operator-facing version-comparison view",
+]
+applies_to    = ["every major version bump of a substrate crate", "every removed primitive / phase / capability"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["[[backward-compat-version-discipline]]", "task #142 deprecation lifecycle"]
+
+[[rule]]
+id        = "docs-006"
+name      = "Every public Rust item has rustdoc"
+domain    = "docs"
+statement = "Every `pub` item (function, struct, enum, trait, type alias, const) in a substrate crate must have a /// doc comment; missing-docs lint is at deny level."
+rationale = """
+A pub item without rustdoc forces consumers to read source to
+understand the contract. For some they will; for many they will guess
+wrong. The rustdoc is the contract for API consumers and the orientation
+for AI agents reading the codebase. The cost of writing it is low; the
+cost of its absence is high.
+"""
+enforcement = [
+  "Workspace [lints] declares missing_docs = deny",
+  "cargo doc --no-deps fails the build on a missing doc",
+  "CI publishes the generated rustdoc; broken links / orphan items surface as findings",
+]
+applies_to    = ["every crate in PlausiDen-Forge, PlausiDen-Loom, PlausiDen-Crawler, *-core crates"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["test-001 (every pub fn has unit test — same shape: every pub fn has doc)"]
+
+[[rule]]
+id        = "docs-007"
+name      = "AGENTS.md is updated in the same commit as substrate behavior changes"
+domain    = "docs"
+statement = "Any PR that adds, removes, or changes a Phase / primitive / manifest field / canonical default / tool surface MUST update the relevant AGENTS.md (tool inventory + crate map + anti-pattern list) in the same commit."
+rationale = """
+AGENTS.md is the session-start orientation. If it lags the code, AI
+agents start sessions with inaccurate orientation and reach for things
+that no longer exist or in the wrong shape. Treating AGENTS.md as part
+of the change keeps the document ruthlessly current. Same-commit
+discipline (not 'in a follow-up') is what enforces the currency.
+"""
+enforcement = [
+  "CI rule: PRs touching forge-phases / loom-cms-render / loom-components / manifest-core that don't touch AGENTS.md fail",
+  "PR review checklist explicitly asks 'did this change need an AGENTS.md update? if yes, is it in this commit?'",
+  "tool inventory section in AGENTS.md may be auto-generated; check this generator runs in CI",
+]
+applies_to    = ["every PR modifying substrate public surface in any PlausiDen repo"]
+severity      = "strict"
+lifecycle     = "stable"
+references    = ["build-008 (duplicate, primitives-perspective)", "[[priority-architectural-first-and-cross-ai]]", "task #145"]
+
+[[rule]]
+id        = "docs-008"
+name      = "Cross-AI compatibility: AGENTS.md + SKILL.md + MCP tool defs usable by Claude AND Gemini AND others"
+domain    = "docs"
+statement = "AGENTS.md (Anthropic convention), SKILL.md frontmatter (Anthropic skill-creator convention), and MCP tool definitions (Model Context Protocol — Anthropic + Google + others) must be format-agnostic enough that Claude, Gemini, and other agentic AI systems can consume them without per-agent customization."
+rationale = """
+The PlausiDen substrate is a multi-agent surface. Catering exclusively
+to Claude (the most-heavily-used today) leaves Gemini and future agents
+out, which fragments the substrate's accessibility. The discipline is
+that orientation files and capability declarations use standardized
+formats (YAML/JSON/TOML frontmatter, MCP protocol-spec, decision-rule
+prose) that any sufficiently-capable agent can read. Claude gets the
+heaviest cater (it's the primary working agent); Gemini is the peer;
+other AI is compatible.
+"""
+enforcement = [
+  "AGENTS.md sections use Markdown + structured frontmatter (parseable as YAML)",
+  "SKILL.md frontmatter follows the Anthropic skill-creator schema (YAML); body is Markdown",
+  "MCP tool definitions in mcp/<tool>.json follow Model Context Protocol spec — Claude, Gemini, and other agents already implement the protocol",
+  "doctrine query CLI emits JSON output (machine-readable across agents)",
+  "no agent-specific extensions; if Claude needs something extra it lives in claude-specific/ outside the canonical files",
+]
+applies_to    = ["every AGENTS.md, SKILL.md, MCP tool definition across the PlausiDen ecosystem"]
+severity      = "strict"
+lifecycle     = "experimental"
+references    = ["[[priority-architectural-first-and-cross-ai]]", "task #199 MCP definitions", "task #149 SKILL.md set"]

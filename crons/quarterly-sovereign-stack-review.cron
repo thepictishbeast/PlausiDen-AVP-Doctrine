@@ -1,0 +1,13 @@
+# PlausiDen Sovereign Polyglot Stack — quarterly review reminder.
+# Managed by PlausiDen-AVP-Doctrine.
+#
+# First Monday of Feb / May / Aug / Nov at 09:00 local. Walks every layer
+# of SOVEREIGN_POLYGLOT_STACK.md and asks:
+#   1. Has fitness shifted? (new language matured, old one regressed)
+#   2. Has governance shifted? (relicense, vendor capture, foundation handoff)
+#   3. Has a watch-list entry become production-ready?
+#
+# Output: ~/.local/share/plausiden/cron-state/sovereign-stack-review.log
+# Also dispatches a notification so the maintainer can't silently miss it.
+
+0 9 1-7 2,5,8,11 1 /usr/bin/env bash -lc 'bash /home/user/Development/PlausiDen/PlausiDen-AVP-Doctrine/scripts/sovereign-stack-review-reminder.sh >> ~/.local/share/plausiden/cron-state/sovereign-stack-review.log 2>&1'

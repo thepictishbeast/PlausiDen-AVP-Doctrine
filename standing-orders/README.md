@@ -1,5 +1,22 @@
 # Standing Orders
 
+> ⚠️ **APPLIES TO MULTI-AGENT SETUPS ONLY** — these files define
+> coordination protocol for environments running **multiple Claude Code
+> instances (or other AI agents) working together as a swarm**: role
+> assignments (Claude-0 Architect / Claude-1 Refiner / Claude-2 Frontend),
+> IPC bus discipline, escalation rules, stop conditions, per-agent memory
+> layout. They are **not** intended as governing rules for single-agent
+> operation (one Claude Code on one host, doing one thing at a time).
+>
+> - **Single-agent setup:** this directory is reference material, not
+>   rules you must follow. Apply the per-project doctrine in each
+>   consumer repo instead.
+> - **Multi-agent swarm:** read the role file matching your agent plus
+>   all cross-cutting files (stop-conditions, escalation, ipc, memory).
+>
+> The IPC bus paths described here assume a primary host filesystem;
+> adjust per [`ipc.md`](ipc.md) for your deployment.
+
 > What an AI agent reads at session start. Re-read on every context compaction.
 
 The doctrine manages the agent so the human doesn't have to. An agent that
