@@ -127,6 +127,12 @@ either green in CI or has a filed exception per
 
 ---
 
+## Companion doctrine: language selection
+
+[`SOVEREIGN_POLYGLOT_STACK.md`](SOVEREIGN_POLYGLOT_STACK.md) — the canonical "best language for each domain" reference, sovereignty-weighted. Quarterly review enforced via `crons/quarterly-sovereign-stack-review.cron`. Every choice in this doc applies the AVP filter: fitness × governance/capture-risk × maturity. Update any time a watched language hits 1.0, a dependency relicenses, or a captive platform changes our deploy surface.
+
+---
+
 ## How to propose a doctrine change
 
 1. PR editing this file plus the relevant `doctrine/*.toml`.
